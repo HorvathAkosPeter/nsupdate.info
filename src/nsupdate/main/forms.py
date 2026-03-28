@@ -56,7 +56,13 @@ class CreateDomainForm(forms.ModelForm):
 
     class Meta(object):
         model = Domain
-        fields = ['name', 'nameserver_ip', 'nameserver2_ip', 'nameserver_update_algorithm', 'comment']
+        fields = [
+          'name',
+          'nameserver_ip', 'nameserver_port', 'nameserver_protocol',
+          'nameserver2_ip', 'nameserver2_port', 'nameserver2_protocol',
+          'nameserver_update_algorithm', 'nameserver_update_secret',
+          'comment'
+        ]
         widgets = {
             'name': forms.widgets.TextInput(attrs=dict(autofocus=None)),
         }
@@ -93,9 +99,13 @@ class EditDomainForm(forms.ModelForm):
 
     class Meta(object):
         model = Domain
-        fields = ['comment', 'nameserver_ip', 'nameserver2_ip', 'public', 'available',
-                  'nameserver_update_algorithm', 'nameserver_update_secret']
-
+        fields = [
+          'name',
+          'nameserver_ip', 'nameserver_port', 'nameserver_protocol',
+          'nameserver2_ip', 'nameserver2_port', 'nameserver2_protocol',
+          'nameserver_update_algorithm', 'nameserver_update_secret',
+          'comment'
+        ]
 
 class CreateUpdaterHostConfigForm(forms.ModelForm):
     class Meta(object):

@@ -13,7 +13,7 @@ import dns.message
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
-from django.core.validators import RegexValidator
+from django.core.validators import RegexValidator, MinValueValidator, MaxValueValidator
 from django.conf import settings
 from django.db.models.signals import pre_delete, post_save
 from django.contrib.auth.hashers import make_password
@@ -82,8 +82,27 @@ UPDATE_ALGORITHMS = {
 
 UPDATE_ALGORITHM_CHOICES = [(k, k) for k in UPDATE_ALGORITHMS]
 
+class RangeIntegerField(models.IntegerField):
+    def __init__(self, *args, **kwargs):
+        validators = kwargs.pop("validators", [])
+        
+        # turn min_value and max_value params into validators
+        min_value = kwargs.pop("min_value", None)
+        if min_value is not None:
+            validators.append(MinValueValidator(min_value))
+        max_value = kwargs.pop("max_value", None)
+        if max_value is not None:
+            validators.append(MaxValueValidator(max_value))
+
+        kwargs["validators"] = validators
+
+        super().__init__(*args, **kwargs)
 
 class Domain(models.Model):
+    class Protocol(models.TextChoices):
+        TCP = "tcp", "tcp"
+        UDP = "udp", "udp"  
+
     name = models.CharField(
         _("name"),
         max_length=255,  # RFC 2181 (and also: max length of unique fields)
@@ -94,11 +113,35 @@ class Domain(models.Model):
         _("nameserver IP (primary)"),
         max_length=40,  # ipv6 = 8 * 4 digits + 7 colons
         help_text=_("IP where the dynamic DNS updates for this zone will be sent to"))
+    nameserver_protocol = models.CharField(
+        _("nameserver protocol (primary)"),
+        choices=Protocol.choices,
+        default = Protocol.TCP,
+        max_length=4,
+        help_text=_("Protocol to use"))
+    nameserver_port = RangeIntegerField(
+        _("nameserver port to use (primary)"),
+        default = 53,
+        min_value = 1, max_value = 65535,
+        help_text=_("Port to use")
+        )
     nameserver2_ip = models.GenericIPAddressField(
         _("nameserver IP (secondary)"),
         max_length=40,  # ipv6 = 8 * 4 digits + 7 colons
         blank=True, null=True,
         help_text=_("IP where DNS queries for this zone will be sent to"))
+    nameserver2_protocol = models.CharField(
+        _("nameserver protocol (secondary)"),
+        choices=Protocol.choices,
+        default = Protocol.TCP,
+        max_length=4,
+        help_text=_("Protocol to use"))
+    nameserver2_port = RangeIntegerField(
+        _("nameserver port to use (secondary)"),
+        default = 53,
+        min_value = 1, max_value = 65535,
+        help_text=_("Port to use")
+        )
     nameserver_update_secret = models.CharField(
         _("nameserver update secret"),
         max_length=88,  # 512 bits base64 -> 88 bytes

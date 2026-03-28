@@ -243,7 +243,9 @@ def query_ns(fqdn, rdtype, prefer_primary=False):
     :raises: see dns.resolver.Resolver.resolve
     """
     assert isinstance(fqdn, FQDN)
+    logger.debug("cica")
     nameserver, nameserver2, origin = get_ns_info(fqdn)[0:3]
+    logger.debug(nameserver)
     resolver = dns.resolver.Resolver(configure=False)
     # we do not configure it from resolv.conf, but patch in the values we
     # want into the documented attributes:
@@ -260,7 +262,7 @@ def query_ns(fqdn, rdtype, prefer_primary=False):
     # (used if flags = None is given). Thus, we explicitly give flags (all off):
     resolver.flags = 0
     try:
-        answer = resolver.resolve(str(fqdn), rdtype, search=True)
+        answer = resolver.resolve(str(fqdn), rdtype, search=True, tcp=True)
         ip = str(list(answer)[0])
         logger.debug("query: %s answer: %s" % (fqdn, ip))
         return ip
