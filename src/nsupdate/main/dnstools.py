@@ -257,6 +257,7 @@ def check_domain(domain_name, domain_data):
         add(fqdn, socket.inet_ntoa(struct.pack('>I', random.randint(1, 0xffffffff))))
 
     except (dns.exception.DNSException, DnsUpdateError) as e:
+        logger.error("Dns error, raising upward: " + str(e))
         raise NameServerNotAvailable(str(e))
 
     finally:
@@ -483,8 +484,8 @@ def get_ns_info(fqdn):
     logger.warning("get_ns_info: algorithm: " + str(algorithm))
     ns1 = make_nameserver(d.nameserver_ip, d.nameserver_port, d.nameserver_protocol)
     ns2 = make_nameserver(d.nameserver2_ip, d.nameserver2_port, d.nameserver2_protocol)
-    return (ns1,        ns2,         fqdn.domain, domain, fqdn.host, domain,  d.nameserver_update_secret, algorithm)
-           #nameserver, nameserver2, origin,      domain, name,      keyname, key,                        algo)
+    return (ns1,        ns2,         fqdn.domain, domain, fqdn.host, d.nameserver_update_key_name, d.nameserver_update_secret, algorithm)
+           #nameserver, nameserver2, origin,      domain, name,      keyname,                      key,                        algo)
 
 
 def update_ns(fqdn, rdtype='A', ipaddr=None, action='upd', ttl=60):
@@ -523,6 +524,7 @@ def update_ns(fqdn, rdtype='A', ipaddr=None, action='upd', ttl=60):
     logger.warning("update_ns: " + str(upd))
     logger.warning("performing %s for name %s and origin %s with rdtype %s and ipaddr %s" % (
                  action, name, origin, rdtype, ipaddr))
+    dns_update_error = False
     try:
         # response = dns.query.tcp(upd, nameserver, timeout=UPDATE_TIMEOUT)
         response = nameserver.query(upd, timeout=UPDATE_TIMEOUT)
@@ -535,34 +537,24 @@ def update_ns(fqdn, rdtype='A', ipaddr=None, action='upd', ttl=60):
         return response
     # TODO simplify exception handling when https://github.com/rthalley/dnspython/pull/85 is merged/released
     except OSError as e:  # was: socket.error (deprecated)
-        logger.error("OSError [%s] - zone: %s" % (str(e), origin, ))
-        set_ns_availability(domain, False)
-        raise DnsUpdateError("OSError %s - zone: %s" % (str(e), origin, ))
+        dns_update_error = "OSError [%s] - zone: %s" % (str(e), origin)
     except EOFError as e:
-        logger.error("EOFError [%s] - zone: %s" % (str(e), origin, ))
-        set_ns_availability(domain, False)
-        raise DnsUpdateError("EOFError")
+        dns_update_error = "EOFError [%s] - zone: %s" % (str(e), origin)
     except dns.exception.Timeout:
-        logger.warning("timeout when performing %s for name %s and origin %s with rdtype %s and ipaddr %s" % (
-                       action, name, origin, rdtype, ipaddr))
-        set_ns_availability(domain, False)
-        raise DnsUpdateError("Timeout")
+        dns_update_error = "timeout when performing %s for name %s and origin %s with rdtype %s and ipaddr %s" % (action, name, origin, rdtype, ipaddr)
     except dns.tsig.PeerBadSignature:
-        logger.error("PeerBadSignature - shared secret mismatch? zone: %s" % (origin, ))
-        set_ns_availability(domain, False)
-        raise DnsUpdateError("PeerBadSignature")
+        dns_update_error = "PeerBadSignature - shared secret mismatch? zone: %s" % origin
     except dns.tsig.PeerBadKey:
-        logger.error("PeerBadKey - shared secret mismatch? zone: %s" % (origin, ))
-        set_ns_availability(domain, False)
-        raise DnsUpdateError("PeerBadKey")
+        dns_update_error = "PeerBadKey - shared secret mismatch? zone: %s" % origin
     except dns.tsig.PeerBadTime:
-        logger.error("PeerBadTime - DNS server did not like the time we sent. zone: %s" % (origin, ))
-        set_ns_availability(domain, False)
-        raise DnsUpdateError("PeerBadTime")
+        dns_update_error = "PeerBadTime - DNS server did not like the time we sent. zone: %s" % origin
     except dns.message.UnknownTSIGKey as e:
-        logger.error("UnknownTSIGKey [%s] - zone: %s" % (str(e), origin, ))
+        dns_update_error = "UnknownTSIGKey [%s] - zone: %s" % (str(e), origin)
+
+    if dns_update_error:
+        logger.error(dns_update_error)
         set_ns_availability(domain, False)
-        raise DnsUpdateError("UnknownTSIGKey")
+        raise DnsUpdateError(dns_update_error)
 
 
 def set_ns_availability(domain, available):

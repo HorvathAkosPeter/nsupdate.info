@@ -88,12 +88,16 @@ class EditDomainForm(forms.ModelForm):
             try:
                 check_domain(self.instance.name, cleaned_data)
 
-            except (NameServerNotAvailable, ):
+            except NameServerNotAvailable as e:
                 raise forms.ValidationError(
-                    _("Failed to add/delete host connectivity-test.%(domain)s, check your DNS server configuration. "
-                      "This is a requirement for setting the available flag."),
+                    _("Failed to add/delete host connectivity-test.%(domain)s, check your DNS server configuration. ") +
+                    _("This is a requirement for setting the available flag.") +
+                    " (%(error_detail)s)",
                     code='invalid',
-                    params={'domain': self.instance.name}
+                    params={
+                        'domain': self.instance.name,
+                        'error_detail': str(e)
+                    }
                 )
 
         if cleaned_data['public'] and not cleaned_data['available']:
