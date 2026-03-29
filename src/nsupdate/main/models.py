@@ -100,8 +100,11 @@ class RangeIntegerField(models.IntegerField):
 
 class Domain(models.Model):
     class Protocol(models.TextChoices):
-        TCP = "tcp", "tcp"
         UDP = "udp", "udp"  
+        TCP = "tcp", "tcp"
+        DOT = "dot", "DoT (dns-over-tls)"
+        DOH = "doh", "DoH (dns-over-https)"
+        DOQ = "doq", "DoQ (dns-over-quic)"
 
     name = models.CharField(
         _("name"),
@@ -142,16 +145,21 @@ class Domain(models.Model):
         min_value = 1, max_value = 65535,
         help_text=_("Port to use")
         )
-    nameserver_update_secret = models.CharField(
-        _("nameserver update secret"),
-        max_length=88,  # 512 bits base64 -> 88 bytes
+    nameserver_update_key_name = models.CharField(
+        _("nameserver update key name"),
+        max_length=128,
         default='',
-        help_text=_("Shared secret that allows updating this zone (base64 encoded)"))
+        help_text=_("Name of the key as it exists in bind.conf . Must be the same as it is in the bind configuration."))
     nameserver_update_algorithm = models.CharField(
         _("nameserver update algorithm"),
         max_length=16,  # see elements of UPDATE_ALGORITHM_CHOICES
         default=UPDATE_ALGORITHM_DEFAULT, choices=UPDATE_ALGORITHM_CHOICES,
         help_text=_("HMAC_SHA512 is fine for bind9 (you can change this later, if needed)"))
+    nameserver_update_secret = models.CharField(
+        _("nameserver update secret"),
+        max_length=88,  # 512 bits base64 -> 88 bytes
+        default='',
+        help_text=_("Shared secret that allows updating this zone (base64 encoded)"))
     public = models.BooleanField(
         _("public"),
         default=False,

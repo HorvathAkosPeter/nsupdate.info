@@ -11,6 +11,8 @@ from django.utils.translation import gettext_lazy as _
 from .models import Host, RelatedHost, Domain, ServiceUpdaterHostConfig
 from .dnstools import check_domain, NameServerNotAvailable
 
+import logging
+logger = logging.getLogger(__name__)
 
 class CreateHostForm(forms.ModelForm):
     class Meta(object):
@@ -58,9 +60,10 @@ class CreateDomainForm(forms.ModelForm):
         model = Domain
         fields = [
           'name',
+          'public', 'available',
           'nameserver_ip', 'nameserver_port', 'nameserver_protocol',
           'nameserver2_ip', 'nameserver2_port', 'nameserver2_protocol',
-          'nameserver_update_algorithm', 'nameserver_update_secret',
+          'nameserver_update_key_name', 'nameserver_update_algorithm', 'nameserver_update_secret',
           'comment'
         ]
         widgets = {
@@ -80,9 +83,10 @@ class EditDomainForm(forms.ModelForm):
     def clean(self):
         cleaned_data = super(EditDomainForm, self).clean()
 
-        if self.cleaned_data['available'] and 'nameserver_ip' in cleaned_data:
+        logger.warning("cleaned_data: " + str(cleaned_data))
+        if self.cleaned_data['available']:
             try:
-                check_domain(self.instance.name, cleaned_data['nameserver_ip'])
+                check_domain(self.instance.name, cleaned_data)
 
             except (NameServerNotAvailable, ):
                 raise forms.ValidationError(
@@ -101,9 +105,10 @@ class EditDomainForm(forms.ModelForm):
         model = Domain
         fields = [
           'name',
+          'public', 'available',
           'nameserver_ip', 'nameserver_port', 'nameserver_protocol',
           'nameserver2_ip', 'nameserver2_port', 'nameserver2_protocol',
-          'nameserver_update_algorithm', 'nameserver_update_secret',
+          'nameserver_update_key_name', 'nameserver_update_algorithm', 'nameserver_update_secret',
           'comment'
         ]
 
