@@ -193,9 +193,10 @@ class Domain(models.Model):
         user_model = get_user_model()
         secret = make_random_password(length=bitlength // 8)
         secret = secret.encode('utf-8')
+        self.nameserver_update_key_name = self.name
         self.nameserver_update_secret = secret_base64 = base64.b64encode(secret).decode('utf-8')
         self.save()
-        return secret_base64
+        return self.nameserver_update_key_name, secret_base64
 
     def get_bind9_algorithm(self):
         return UPDATE_ALGORITHMS.get(self.nameserver_update_algorithm).bind_name
