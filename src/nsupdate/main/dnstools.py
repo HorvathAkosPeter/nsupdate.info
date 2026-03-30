@@ -93,12 +93,13 @@ class NameServerNotAvailable(Exception):
     but we tried using it.
     """
 
+
 class UdpNameServer(dns.nameserver.AddressAndPortNameserver):
     def __init__(self, address: str, port: int = 53):
-      super().__init__(address, port)
+        super().__init__(address, port)
 
     def kind(self):
-      return "udp"
+        return "udp"
 
     def query(
         self,
@@ -135,7 +136,7 @@ class UdpNameServer(dns.nameserver.AddressAndPortNameserver):
         one_rr_per_rrset: bool = False,
         ignore_trailing: bool = False,
         max_size: int | None = None
-) -> dns.message.Message:
+    ) -> dns.message.Message:
         response = await dns.asyncquery.udp(
             request,
             self.address,
@@ -152,12 +153,13 @@ class UdpNameServer(dns.nameserver.AddressAndPortNameserver):
         )
         return response
 
+
 class TcpNameServer(dns.nameserver.AddressAndPortNameserver):
     def __init__(self, address: str, port: int = 53):
-      super().__init__(address, port)
+        super().__init__(address, port)
 
     def kind(self):
-      return "tcp"
+        return "tcp"
 
     def query(
         self,
@@ -205,19 +207,21 @@ class TcpNameServer(dns.nameserver.AddressAndPortNameserver):
         )
         return response
 
+
 def make_nameserver(ip, port, protocol):
-  if protocol == "udp":
-    return UdpNameServer(ip, port)
-  elif protocol == "tcp":
-    return TcpNameServer(ip, port)
-  elif protocol == "dot":
-    return dns.nameserver.DoTNameServer(ip, port)
-  elif protocol == "doh":
-    return dns.nameserver.DoHNameServer(ip, port)
-  elif protocol == "doq":
-    return dns.nameserver.DoQNameServer(ip, port)
-  else:
-    raise DnsUpdateError("invalid protocol")
+    if protocol == "udp":
+        return UdpNameServer(ip, port)
+    elif protocol == "tcp":
+        return TcpNameServer(ip, port)
+    elif protocol == "dot":
+        return dns.nameserver.DoTNameServer(ip, port)
+    elif protocol == "doh":
+        return dns.nameserver.DoHNameServer(ip, port)
+    elif protocol == "doq":
+        return dns.nameserver.DoQNameServer(ip, port)
+    else:
+        raise DnsUpdateError("invalid protocol")
+
 
 def check_ip(ipaddr, keys=('ipv4', 'ipv6')):
     """
@@ -235,7 +239,7 @@ def check_ip(ipaddr, keys=('ipv4', 'ipv6')):
 
 
 def check_domain(domain_name, domain_data):
-    logger.warning(("check_domain", domain_name, domain_data))
+    logger.debug(("check_domain", domain_name, domain_data))
     fqdn = FQDN(host="connectivity-test", domain=domain_name)
 
     from .models import Domain
@@ -281,7 +285,7 @@ def add(fqdn, ipaddr, ttl=60):
     """
     assert isinstance(fqdn, FQDN)
     rdtype = check_ip(ipaddr, keys=('A', 'AAAA'))
-    logger.warning("add %s" % str(fqdn))
+    logger.debug("add %s" % str(fqdn))
     try:
         current_ipaddr = query_ns(fqdn, rdtype)
         # check if ip really changed
@@ -381,10 +385,9 @@ def query_ns(fqdn, rdtype, prefer_primary=False):
     """
     assert isinstance(fqdn, FQDN)
     nameserver, nameserver2, origin = get_ns_info(fqdn)[0:3]
-    logger.warning("query_ns: %s" % (str(nameserver)))
-    logger.warning("query_ns: %s" % (str(nameserver2)))
-    logger.warning("query_ns: %s" % (str(origin)))
-    #logger.debug("query_ns: %s" % (str(nameserver_ip), str(nameserver_port), str(nameserver_protocol), str(nameserver2_ip), str(nameserver2_port), str(nameserver2_protocol)))
+    logger.debug("query_ns: %s" % (str(nameserver)))
+    logger.debug("query_ns: %s" % (str(nameserver2)))
+    logger.debug("query_ns: %s" % (str(origin)))
     resolver = dns.resolver.Resolver(configure=False)
     # we do not configure it from resolv.conf, but patch in the values we
     # want into the documented attributes:
@@ -400,7 +403,7 @@ def query_ns(fqdn, rdtype, prefer_primary=False):
     # recursion. But: RD (recursion desired) is the internal default for flags
     # (used if flags = None is given). Thus, we explicitly give flags (all off):
     resolver.flags = 0
-    logger.warning("query_ns: fqdn: %s" % str(fqdn))
+    logger.debug("query_ns: fqdn: %s" % str(fqdn))
     try:
         answer = resolver.resolve(str(fqdn), rdtype, search=True)
         ip = str(list(answer)[0])
@@ -479,13 +482,12 @@ def get_ns_info(fqdn):
         else:
             # retry timeout is over, set it available again
             set_ns_availability(domain, True)
-    logger.warning("get_ns_info: domain: " + str(model_to_dict(d)))
+    logger.debug("get_ns_info: domain: " + str(model_to_dict(d)))
     algorithm = getattr(dns.tsig, d.nameserver_update_algorithm)
-    logger.warning("get_ns_info: algorithm: " + str(algorithm))
+    logger.debug("get_ns_info: algorithm: " + str(algorithm))
     ns1 = make_nameserver(d.nameserver_ip, d.nameserver_port, d.nameserver_protocol)
     ns2 = make_nameserver(d.nameserver2_ip, d.nameserver2_port, d.nameserver2_protocol)
-    return (ns1,        ns2,         fqdn.domain, domain, fqdn.host, d.nameserver_update_key_name, d.nameserver_update_secret, algorithm)
-           #nameserver, nameserver2, origin,      domain, name,      keyname,                      key,                        algo)
+    return (ns1, ns2, fqdn.domain, domain, fqdn.host, d.nameserver_update_key_name, d.nameserver_update_secret, algorithm)
 
 
 def update_ns(fqdn, rdtype='A', ipaddr=None, action='upd', ttl=60):
@@ -503,9 +505,7 @@ def update_ns(fqdn, rdtype='A', ipaddr=None, action='upd', ttl=60):
     assert isinstance(fqdn, FQDN)
     assert action in ['add', 'del', 'upd']
     nameserver, nameserver2, origin, domain, name, keyname, key, algo = get_ns_info(fqdn)
-    logger.warning("update_ns: %s" % keyname)
-    logger.warning("update_ns: %s" % key)
-    logger.warning("update_ns: %s!" % algo)
+    logger.debug("update_ns: (%s,%s,%s)" % (keyname, key, algo))
     try:
         keyring = dns.tsigkeyring.from_text({keyname: key})
     except (UnicodeError, binascii.Error) as e:
@@ -521,9 +521,7 @@ def update_ns(fqdn, rdtype='A', ipaddr=None, action='upd', ttl=60):
     elif action == 'upd':
         assert ipaddr is not None
         upd.replace(name, ttl, rdtype, ipaddr)
-    logger.warning("update_ns: " + str(upd))
-    logger.warning("performing %s for name %s and origin %s with rdtype %s and ipaddr %s" % (
-                 action, name, origin, rdtype, ipaddr))
+    logger.warning("performing %s for name %s and origin %s with rdtype %s and ipaddr %s" % (action, name, origin, rdtype, ipaddr))
     dns_update_error = False
     try:
         # response = dns.query.tcp(upd, nameserver, timeout=UPDATE_TIMEOUT)

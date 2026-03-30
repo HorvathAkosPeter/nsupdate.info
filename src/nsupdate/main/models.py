@@ -82,10 +82,11 @@ UPDATE_ALGORITHMS = {
 
 UPDATE_ALGORITHM_CHOICES = [(k, k) for k in UPDATE_ALGORITHMS]
 
+
 class RangeIntegerField(models.IntegerField):
     def __init__(self, *args, **kwargs):
         validators = kwargs.pop("validators", [])
-        
+
         # turn min_value and max_value params into validators
         min_value = kwargs.pop("min_value", None)
         if min_value is not None:
@@ -98,9 +99,10 @@ class RangeIntegerField(models.IntegerField):
 
         super().__init__(*args, **kwargs)
 
+
 class Domain(models.Model):
     class Protocol(models.TextChoices):
-        UDP = "udp", "udp"  
+        UDP = "udp", "udp"
         TCP = "tcp", "tcp"
         DOT = "dot", "DoT (dns-over-tls)"
         DOH = "doh", "DoH (dns-over-https)"
@@ -119,15 +121,14 @@ class Domain(models.Model):
     nameserver_protocol = models.CharField(
         _("nameserver protocol (primary)"),
         choices=Protocol.choices,
-        default = Protocol.TCP,
+        default=Protocol.TCP,
         max_length=4,
         help_text=_("Protocol to use"))
     nameserver_port = RangeIntegerField(
         _("nameserver port to use (primary)"),
-        default = 53,
-        min_value = 1, max_value = 65535,
-        help_text=_("Port to use")
-        )
+        default=53,
+        min_value=1, max_value=65535,
+        help_text=_("Port to use"))
     nameserver2_ip = models.GenericIPAddressField(
         _("nameserver IP (secondary)"),
         max_length=40,  # ipv6 = 8 * 4 digits + 7 colons
@@ -136,15 +137,14 @@ class Domain(models.Model):
     nameserver2_protocol = models.CharField(
         _("nameserver protocol (secondary)"),
         choices=Protocol.choices,
-        default = Protocol.TCP,
+        default=Protocol.TCP,
         max_length=4,
         help_text=_("Protocol to use"))
     nameserver2_port = RangeIntegerField(
         _("nameserver port to use (secondary)"),
-        default = 53,
-        min_value = 1, max_value = 65535,
-        help_text=_("Port to use")
-        )
+        default=53,
+        min_value=1, max_value=65535,
+        help_text=_("Port to use"))
     nameserver_update_key_name = models.CharField(
         _("nameserver update key name"),
         max_length=128,
