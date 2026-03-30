@@ -1,0 +1,14 @@
+- implement a zone editor
+- connection test as a separate button on the domain editor
+- key generation should be a separate functionality
+- remove_nameserver2 as no one is using it
+- dnstools.py should be an OO thing, reading the db only once
+- nameservers should be separate, induvidually manageable entities
+- keys should be separate, induvidually manageable entities
+- domains should be called as zones (because they are)
+- nameserver and key should be a foreign key property of the zone
+- current "show config" should not regenerate keys, only show config, in a popup
+- review permanently suspended pull requests, merge them all, and contact their developers
+- review github forks, also merge them and contact their developers
+- promoting docker from scripts/contrib to main project feature
+- review rejected pull requests
