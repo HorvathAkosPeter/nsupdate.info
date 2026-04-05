@@ -19,6 +19,8 @@ from django.db.models.signals import pre_delete, post_save
 from django.contrib.auth.hashers import make_password
 from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
+from django.urls import reverse
+from django.utils.html import format_html
 
 from . import dnstools
 
@@ -200,6 +202,15 @@ class Domain(models.Model):
 
     def get_bind9_algorithm(self):
         return UPDATE_ALGORITHMS.get(self.nameserver_update_algorithm).bind_name
+
+    def action_buttons(self):
+        edit = reverse("domain_view", args=[self.pk])
+        zone_editor = reverse("zone_editor", args=[self.pk])
+        delete = reverse("delete_domain", args=[self.pk])
+        return format_html('<a class="btn btn-xs btn-primary" href="{}">' + _("Properties") + '</a> '
+                           '<a class="btn btn-xs btn-primary" href="{}">' + _("Zone editor") + '</a> '
+                           '<a class="btn btn-xs btn-primary" href="{}">' + _("Delete") + '</a>',
+                           edit, zone_editor, delete)
 
     class Meta:
         verbose_name = _('domain')

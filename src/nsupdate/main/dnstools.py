@@ -41,9 +41,11 @@ import dns.update
 import dns.tsig
 import dns.tsigkeyring
 import dns.exception
+import dns.zone
 
 from django.utils.timezone import now
 from django.forms.models import model_to_dict
+from django.utils.translation import gettext_lazy as _
 
 
 class FQDN(namedtuple('FQDN', ['host', 'domain'])):
@@ -206,6 +208,13 @@ class TcpNameServer(dns.nameserver.AddressAndPortNameserver):
             ignore_trailing=ignore_trailing,
         )
         return response
+
+
+def ends_with_dot(name):
+    if name == "" or not name.endswith("."):
+        return name + "."
+    else:
+        return name
 
 
 def make_nameserver(ip, port, protocol):
@@ -553,6 +562,66 @@ def update_ns(fqdn, rdtype='A', ipaddr=None, action='upd', ttl=60):
         logger.error(dns_update_error)
         set_ns_availability(domain, False)
         raise DnsUpdateError(dns_update_error)
+
+
+def download_zone(domain):
+    logger.warning("download_zone, protocol: " + str(domain.nameserver_protocol))
+    if domain.nameserver_protocol != "tcp":
+        raise DnsUpdateError(_("AXFR/IXFR protocol can work exclusively on TCP-based DNS servers"))
+
+    # def axfr_with_tsig(server, zone_name, key_name, key_secret_b64, key_alg=TSIG_ALGORITHM):
+    # Build a keyring (name -> base64 secret)
+    keyring = dns.tsigkeyring.from_text({
+        domain.nameserver_update_key_name: domain.nameserver_update_secret
+    })
+
+    logger.error("domain.name: %s" % domain.name)
+    # Initiate the transfer iterator; pass keyring and keyname/algorithm
+    try:
+        xfr_iter = dns.query.xfr(
+            where=domain.nameserver_ip,
+            port=domain.nameserver_port,
+            zone=domain.name,
+            keyring=keyring,
+            keyname=domain.nameserver_update_key_name,
+            # keyalgorithm=domain.nameserver_update_algorithm,
+            keyalgorithm=getattr(dns.tsig, domain.nameserver_update_algorithm),
+            lifetime=UPDATE_TIMEOUT,
+            use_udp=False
+        )
+    except Exception as e:
+        logger.error("Failed to start transfer:", e)
+        raise
+
+    # Build a Zone from the transfer iterator
+    try:
+        zone = dns.zone.from_xfr(xfr_iter, relativize=True, check_origin=False)
+    except dns.exception.FormError as e:
+        logger.error("Transfer failed / bad data:", e)
+        raise
+    except Exception as e:
+        logger.error("AXFR/IXFR error:", e)
+        raise
+
+    # z = axfr_with_tsig(AXFR_SERVER, ZONE_NAME, TSIG_KEY_NAME, TSIG_SECRET_BASE64)
+    # logger.warning("Zone origin:", zone.origin)
+    logger.warning("Number of nodes:", len(zone.nodes))
+
+    result = []
+    for name, node in zone.nodes.items():
+        for rdataset in node.rdatasets:
+            for rdata in rdataset:
+                record_dict = {
+                    "name": ends_with_dot(name.to_text() + "." + domain.name),
+                    "ttl": rdataset.ttl,
+                    "class": dns.rdataclass.to_text(rdataset.rdclass),
+                    "type": dns.rdatatype.to_text(rdataset.rdtype),
+                    "data": str(rdata)
+                }
+                # logger.warning(record_dict)
+                result += [record_dict]
+
+    return result
 
 
 def set_ns_availability(domain, available):

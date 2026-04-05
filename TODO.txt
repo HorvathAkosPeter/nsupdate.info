@@ -12,3 +12,5 @@
 - review github forks, also merge them and contact their developers
 - promoting docker from scripts/contrib to main project feature
 - review rejected pull requests
+- on domain generation, it overwrites the key with a self-generated one
+- /delete method with GET should result a HTML "are you sure" page. With POST it should delete, then put a feedback with a link to the overview.
