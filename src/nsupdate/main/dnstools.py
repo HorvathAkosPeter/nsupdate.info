@@ -602,9 +602,8 @@ def download_zone(domain):
         logger.error("AXFR/IXFR error:", e)
         raise
 
-    # z = axfr_with_tsig(AXFR_SERVER, ZONE_NAME, TSIG_KEY_NAME, TSIG_SECRET_BASE64)
-    # logger.warning("Zone origin:", zone.origin)
-    logger.warning("Number of nodes:", len(zone.nodes))
+    logger.warning("Zone origin: " + str(zone.origin))
+    logger.warning("Number of nodes: " + str(len(zone.nodes)))
 
     result = []
     for name, node in zone.nodes.items():

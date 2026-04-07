@@ -4,12 +4,12 @@
 {% block html_head %}
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-grid.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-theme-alpine.css">
+    <link rel="stylesheet" href="{% static 'css/zone_editor.css' %}">
     <script src="https://cdn.jsdelivr.net/npm/ag-grid-community/dist/ag-grid-community.min.noStyle.js" defer></script>
     <script src="{% static 'js/zone_editor.js' %}" defer></script>
     <script src="{% url 'zone_editor_jsonp' pk %}" defer></script>
 {% endblock %}
 
 {% block content %}
-    {{ pk }}
     <div id="myGrid" class="ag-theme-alpine"></div>
 {% endblock %}
