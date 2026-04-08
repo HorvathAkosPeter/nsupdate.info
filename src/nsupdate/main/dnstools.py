@@ -583,27 +583,26 @@ def download_zone(domain):
             zone=domain.name,
             keyring=keyring,
             keyname=domain.nameserver_update_key_name,
-            # keyalgorithm=domain.nameserver_update_algorithm,
             keyalgorithm=getattr(dns.tsig, domain.nameserver_update_algorithm),
             lifetime=UPDATE_TIMEOUT,
             use_udp=False
         )
     except Exception as e:
         logger.error("Failed to start transfer:", e)
-        raise
+        raise DnsUpdateError(repr(e))
 
     # Build a Zone from the transfer iterator
     try:
         zone = dns.zone.from_xfr(xfr_iter, relativize=True, check_origin=False)
     except dns.exception.FormError as e:
         logger.error("Transfer failed / bad data:", e)
-        raise
+        raise DnsUpdateError(repr(e))
     except Exception as e:
         logger.error("AXFR/IXFR error:", e)
-        raise
+        raise DnsUpdateError(repr(e))
 
-    logger.warning("Zone origin: " + str(zone.origin))
-    logger.warning("Number of nodes: " + str(len(zone.nodes)))
+    logger.debug("Zone origin: " + str(zone.origin))
+    logger.debug("Number of nodes: " + str(len(zone.nodes)))
 
     result = []
     for name, node in zone.nodes.items():

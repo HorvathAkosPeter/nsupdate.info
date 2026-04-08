@@ -532,8 +532,13 @@ class ZoneEditorJsonView(View):
     def get_zone(self, zoneId):
         domain = get_object_or_404(Domain, pk=zoneId)
         logger.warning("get_zone: %s" % zoneId)
-        zone = dnstools.download_zone(domain)
-        return zone
+        records = []
+        error = False
+        try:
+          records = dnstools.download_zone(domain)
+        except Exception as e:
+          error = str(e)
+        return { "records": records, "error": error }
 
     def get_json(self, request, *args, **kwargs):
         response = self.get_zone(kwargs.get("pk"))
