@@ -546,7 +546,7 @@ class ZoneEditorJsonView(View):
 
     def get_jsonp(self, request, *args, **kwargs):
         zone_data = self.get_zone(kwargs.get("pk"))
-        body = f'zoneJsonCallback({json.dumps(zone_data)});'
+        body = f'zone_editor_obj.new_data_cb({json.dumps(zone_data)});'
         return HttpResponse(body, content_type='application/javascript; charset=utf-8')
 
     def get(self, request, *args, **kwargs):
