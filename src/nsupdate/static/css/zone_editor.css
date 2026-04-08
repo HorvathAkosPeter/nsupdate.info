@@ -3,9 +3,19 @@
   min-width: 1170px;
 }
 
-#myGrid {
+#zone_editor_grid {
   margin-left: auto;
   margin-right: auto;
+  margin-bottom: 18px;
+}
+
+#zone_editor_controls {
+  text-align: center;
+  padding-bottom: 18px;
+}
+
+#zone_editor_controls > button {
+  display: inline-block;
 }
 
 .ag-theme-alpine {

@@ -60,7 +60,7 @@ function zone_editor(grid_id, error_id, controls_id) {
     // const padding = 16; // scrollbar / safety
     const padding = 0;
     new_width = (total + padding) + 'px';
-    this.zone_grid.style.width = new_width;
+    this.grid_node.style.width = new_width;
   }
 
   this.on_first_data_rendered = function(params) {
