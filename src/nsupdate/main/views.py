@@ -14,7 +14,7 @@ import logging
 logger = logging.getLogger('')
 
 from django.db.models import Q
-from django.views.generic import View, TemplateView, CreateView
+from django.views.generic import View, TemplateView, CreateView, DetailView
 from django.views.generic.edit import UpdateView, DeleteView
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.contrib.auth.decorators import login_required
@@ -35,9 +35,8 @@ from .forms import (CreateHostForm, EditHostForm, CreateRelatedHostForm, EditRel
 from .models import Host, RelatedHost, Domain, ServiceUpdaterHostConfig
 
 
-class GenerateSecretView(UpdateView):
+class GenerateSecretView(DetailView):
     model = Host
-    fields = "__all__"
     template_name = "main/generate_secret.html"
 
     @method_decorator(login_required)
@@ -59,9 +58,8 @@ class GenerateSecretView(UpdateView):
         return context
 
 
-class GenerateNSSecretView(UpdateView):
+class GenerateNSSecretView(DetailView):
     model = Domain
-    fields = "__all__"
     template_name = "main/generate_ns_secret.html"
 
     @method_decorator(login_required)
@@ -172,7 +170,7 @@ class JsUpdateView(TemplateView):
     template_name = "main/update.html"
 
     def get(self, request, *args, **kwargs):
-        auth = request.META.get('HTTP_AUTHORIZATION')
+        auth = request.headers.get('authorization')
         if auth is None:
             return basic_challenge("authenticate to update DNS", 'badauth')
         creds = basic_authenticate(auth)
@@ -201,8 +199,15 @@ class OverviewView(TemplateView):
         context['hosts'] = Host.objects.filter(created_by=self.request.user).select_related("domain")\
             .only("name", "comment", "available", "client_faults", "server_faults", "abuse_blocked", "abuse",
                   "last_update_ipv4", "tls_update_ipv4", "last_update_ipv6", "tls_update_ipv6", "domain__name")
-        context['your_domains'] = Domain.objects.filter(created_by=self.request.user)
-        context['public_domains'] = Domain.objects.filter(public=True).exclude(created_by=self.request.user)
+        # context['your_domains'] = Domain.objects.filter(created_by=self.request.user)
+        # context['public_domains'] = Domain.objects.filter(public=True).exclude(created_by=self.request.user)
+
+        context['your_domains'] = Domain.objects.filter(
+            created_by=self.request.user).select_related("created_by")\
+            .only("name", "public", "available", "comment", "created_by__username")
+        context['public_domains'] = Domain.objects.filter(
+            public=True).exclude(created_by=self.request.user).select_related("created_by")\
+            .only("name", "public", "available", "comment", "created_by__username")
         return context
 
 
