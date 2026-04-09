@@ -17,7 +17,7 @@ from netaddr.core import AddrFormatError
 from django.http import HttpResponse
 from django.conf import settings
 from django.views.generic.base import View
-from django.contrib.auth.hashers import check_password
+from django.contrib.auth.hashers import check_password, verify_password
 from django.contrib.auth.decorators import login_required
 from django.utils.decorators import method_decorator
 
@@ -26,6 +26,7 @@ from ..main.models import Host
 from ..main.dnstools import (FQDN, update, delete, check_ip, put_ip_into_session,
                              SameIpError, DnsUpdateError, NameServerNotAvailable)
 from ..main.iptools import normalize_ip
+from .utils import get_session_key_from_token
 
 
 def Response(content, status=200):
@@ -55,15 +56,19 @@ def myip_view(request, logger=None):
 
 class DetectIpView(View):
     @log.logger(__name__)
-    def get(self, request, sessionid, logger=None):
+    def get(self, request, token, logger=None):
         """
         Put the IP address (IPv4 or IPv6) of the client requesting this view
         into the client's session.
 
         :param request: Django request object
-        :param sessionid: Session ID from the URL used to find the correct session without a session cookie
+        :param token: Temporary token used to find the correct session without a session cookie
         :return: HttpResponse object
         """
+        sessionid = get_session_key_from_token(token)
+        if sessionid is None:
+            logger.debug("no session found for token %s" % token)
+            return HttpResponse(status=204)
         engine = import_module(settings.SESSION_ENGINE)
         # We do not have the session as usual, as this is a different host,
         # so the session cookie is not received here; thus we access it via
@@ -73,7 +78,7 @@ class DetectIpView(View):
         # As this is NOT the session automatically established and
         # also saved by the framework, we need to use save=True here.
         put_ip_into_session(s, ipaddr, save=True)
-        logger.debug("detected remote address: %s for session %s" % (ipaddr, sessionid))
+        logger.debug("detected remote address: %s for session %s (token %s)" % (ipaddr, sessionid, token))
         return HttpResponse(status=204)
 
 
@@ -155,7 +160,11 @@ def check_api_auth(username, password, logger=None):
         logger.debug('%s - received bad credentials (auth username == dyndns hostname not in our hosts DB)' % (fqdn, ))
         return None
     if host is not None:
-        ok = check_password(password, host.update_secret)
+        ok, must_update = verify_password(password, host.update_secret, preferred='weakargon2')
+        if ok and must_update:
+            # If password is correct but uses a not desired hasher, change it now to the desired one.
+            host.generate_secret(password)
+
         success_msg = ('failure', 'success')[ok]
         msg = "api authentication %s. [hostname: %s (given in basic auth)]" % (success_msg, fqdn, )
         host.register_api_auth_result(msg, fault=not ok)
@@ -216,7 +225,7 @@ class NicUpdateView(View):
         hostname = request.GET.get('hostname')
         if hostname in settings.BAD_HOSTS:
             return Response('abuse', status=403)
-        auth = request.META.get('HTTP_AUTHORIZATION')
+        auth = request.headers.get('authorization')
         if auth is None:
             # logging this at debug level because otherwise it fills our logs...
             logger.debug('%s - received no auth' % (hostname, ))
@@ -250,7 +259,7 @@ class NicUpdateView(View):
             logger.warning(msg)
             host.register_client_result(msg, fault=True)
             return Response(result)
-        agent = request.META.get('HTTP_USER_AGENT', 'unknown')
+        agent = request.headers.get('user-agent', 'unknown')
         if agent in settings.BAD_AGENTS:
             msg = '%s - received update from bad user agent %r' % (hostname, agent)
             logger.warning(msg)
