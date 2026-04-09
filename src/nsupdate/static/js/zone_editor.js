@@ -39,6 +39,58 @@ function zone_editor(grid_id, error_id, controls_id) {
     return str_hash;
   }
 
+  function naturalCompare(str1, str2) {
+    return str1.localeCompare(str2, undefined, {numeric: true});
+  }
+
+  function arrayNaturalCompare(ar1, ar2) {
+    var i=0;
+    for (var i=0; i<ar1.length && i<ar2.length; i++) {
+      if (ar1[i] !== ar2[i]) {
+        return naturalCompare(ar1[i], ar2[i]);
+      }
+    }
+    return ar1.length - ar2.length;
+  }
+
+  function dottedCompare(str1, str2) {
+    var ar1 = str1.split(".");
+    var ar2 = str2.split(".");
+    return arrayNaturalCompare(ar1, ar2);
+  }
+
+  function reverseDottedCompare(str1, str2) {
+    var ar1 = str1.split(".").reverse();
+    var ar2 = str2.split(".").reverse();
+    return arrayNaturalCompare(ar1, ar2);
+  }
+
+  var sti=0;
+
+  function zone_record_compare(rowA, rowB) {
+    if (rowA.type === "SOA" && rowB.type !== "SOA")
+      return -1;
+    if (rowA.type !== "SOA" && rowB.type === "SOA")
+      return 1;
+    if (rowA.name.startsWith("@") && !rowB.name.startsWith("@"))
+      return -1;
+    if (!rowA.name.startsWith("@") && rowB.name.startsWith("@"))
+      return 1;
+    if (rowA.name !== rowB.name)
+      return reverseDottedCompare(rowA.name, rowB.name);
+    if (rowA.type !== rowB.type)
+      return naturalCompare(rowA.type, rowB.type);
+    if (rowA.class !== rowB.class)
+      return naturalCompare(rowA.class, rowB.class);
+    if (rowA.data === rowB.data)
+      return naturalCompare(rowA.ttl, rowB.ttl);
+    if (rowA.type === "A")
+      return dottedCompare(rowA.data, rowB.data);
+    if (rawA.type === "PTR")
+      return reverseDottedCompare(rowA.data, rowB.data);
+    return naturalCompare(rowA.data, rowB.data);
+  }
+
   this.grid_node = document.getElementById(grid_id);
   this.error_node = document.getElementById(error_id);
   this.controls_node = document.getElementById(controls_id);
@@ -60,7 +112,10 @@ function zone_editor(grid_id, error_id, controls_id) {
       { headerName: "controls", field: "controls", cellClass: "zone-editor-controls",
         cellRenderer: function(params) { return this_.control_cell_html(params); }
       },
-      { headerName: "error", field: "error", cellClass: "zone-editor-error" }
+      { headerName: "error", field: "error", cellClass: "zone-editor-error" },
+      { headerName: "hidden_sorting_column", field: "hidden_sorting_column", sortable: true, hide: true,
+        comparator: function(valueA, valueB, nodeA, nodeB) { return zone_record_compare(nodeA.data, nodeB.data); }
+      }
     ],
     rowData: [],
     defaultColDef: {
@@ -82,10 +137,16 @@ function zone_editor(grid_id, error_id, controls_id) {
     onGridReady: function(params) {
       this_.api = params.api;
       this_.inited = true;
+      params.api.applyColumnState({
+        state: [{colId: 'hidden_sorting_column', sort: 'asc', sortIndex: 0}],
+        defaultState: { sort: null }
+      });
+      params.api.refreshClientSideRowModel('sort');
+      params.api.onSortChanged();
     },
     getRowId: function(row) {
       id = row_hash(row);
-      console.log(JSON.stringify(row.data) + " " + id);
+      // console.log(JSON.stringify(row.data) + " " + id);
       return id;
     },
     getRowClass: function(params) {
@@ -98,7 +159,6 @@ function zone_editor(grid_id, error_id, controls_id) {
   };
 
   this.set_error = function(error) {
-    console.log("set_error: " + error);
     this.error = error;
     if (is_nonemptystring(this.error)) {
       zone_editor_error.style.display = "block";
@@ -116,7 +176,10 @@ function zone_editor(grid_id, error_id, controls_id) {
 
     const cols = params.api.getColumns();
     let total = 0;
-    cols.forEach(c => total += c.getActualWidth());
+    cols.forEach(function(c) {
+      if (typeof c.colDef.hide === 'undefined' || c.colDef.hide !== true)
+        total += c.getActualWidth();
+    });
     // const padding = 16; // scrollbar / safety
     const padding = 0;
     new_width = (total + padding) + 'px';
@@ -177,8 +240,9 @@ function zone_editor(grid_id, error_id, controls_id) {
     } else {
       agGrid.createGrid(this.grid_node, this.grid_options);
     }
-  },
-  this.control_cell_html = function(params) {
+  }
+
+  this.control_cell_html = function(gridparams) {
     var buttons=[
       ['delete', this_.on_control_click_delete],
       ['clone', this_.on_control_click_clone],
@@ -194,23 +258,33 @@ function zone_editor(grid_id, error_id, controls_id) {
       button_node.type = 'button';
       button_node.textContent = button_name;
       button_node.classList.add('btn', 'btn-xs', 'btn-primary', 'zone-editor-btn-' + button_name);
-      button_node.addEventListener(button[0], function(params) { button_onclick.bind(this_)(params); });
+      this_.add_click_listener(button_node, button_onclick, gridparams);
     }
     return el;
-    return `<button class="btn btn-xs btn-primary">cica</button>
-    <button class="btn btn-xs btn-primary">cica2</button>`;
-  },
+  }
+
+  this.add_click_listener = function(button_node, button_onclick, gridparams) {
+    button_node.addEventListener('click', function(params) { button_onclick.bind(this_)(gridparams); });
+  }
+
   this.on_control_click_edit = function(params) {
     console.log("edit");
+    console.log(params);
   }
+
   this.on_control_click_cancel  = function(params) {
     console.log("cancel");
+    console.log(params);
   }
+
   this.on_control_click_clone = function(params) {
     console.log("clone");
+    console.log(params);
   }
+
   this.on_control_click_delete = function(params) {
     console.log("delete");
+    console.log(params);
   }
 }
 
