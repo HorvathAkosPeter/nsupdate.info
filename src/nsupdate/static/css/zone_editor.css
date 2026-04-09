@@ -61,5 +61,32 @@
   text-align: right;
 }
 
-.zone-editor-data {
+.zone-editor-data.ag-cell,
+.ag-header-cell[col-id="data"] {
+  border-right: var(--ag-border-color) solid 1px;
+}
+
+.zone-editor-state.ag-cell,
+.ag-header-cell[col-id="state"] {
+  border-left: var(--ag-border-color) solid 1px;
+}
+
+.zone-editor-controls {
+}
+
+.zone-editor-error {
+}
+
+.ag-row-vanilla {
+}
+
+.ag-row-todel {
+  background-color: #fee;
+}
+
+.ag-row-toadd {
+  background-color: #efe;
+}
+
+.ag-row-error {
 }
