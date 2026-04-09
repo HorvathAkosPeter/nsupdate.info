@@ -7,6 +7,7 @@ function zone_editor(grid_id, error_id, controls_id) {
   this.inited = false;
 
   this_ = this;
+  this.controls_node.addEventListener('click', function() { this_.reload_clicked(); });
 
   this.grid_options = {
     columnDefs: [
@@ -33,13 +34,13 @@ function zone_editor(grid_id, error_id, controls_id) {
       this_.recalc_width(param);
     },
     onGridReady: function(params) {
-      console.log(params);
       this_.api = params.api;
       this_.inited = true;
     }
   };
 
-  this.refresh_error_div = function() {
+  this.set_error = function(error) {
+    this.error = error;
     if (typeof this.error === 'string' && this.error.length > 0) {
       zone_editor_error.style.display = "block";
       zone_editor_error.innerHTML = this.error;
@@ -75,20 +76,38 @@ function zone_editor(grid_id, error_id, controls_id) {
     this.recalc_width(params);
   }
 
+  this.start_dl_animation = function() {
+    this.controls_node.querySelector(".reload-icon").classList.add("pulse");
+  }
+
+  this.stop_dl_animation = function() {
+    this.controls_node.querySelector(".reload-icon").classList.remove("pulse");
+  }
+
+  this.reload_clicked = function() {
+    this.start_dl_animation();
+    rest_url = new URL('../zone_json/', window.location.href).href;
+    fetch(rest_url)
+      .then(function(response) {
+        this_.new_data_cb(response.json());
+        this_.set_error(false);
+      })
+      .catch(function(err) {
+        this_.stop_dl_animation();
+        this_.set_error(err);
+      });
+  };
+
   this.new_data_cb = function(data) {
-    console.log(data);
     this.grid_options.rowData = data["records"];
-    this.error = data["error"];
-    this.refresh_error_div();
-    console.log(this.api);
-    // this.api.setRowData(this.data);
+    this.set_error(data["error"]);
+    this.stop_dl_animation();
     if (this.inited) {
       this.api.refreshCells();
     } else {
       agGrid.createGrid(this.grid_node, this.grid_options);
     }
   }
-
 }
 
 var zone_editor_obj = new zone_editor('zone_editor_grid', 'zone_editor_error', 'zone_editor_controls');
