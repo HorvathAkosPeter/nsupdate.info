@@ -65,9 +65,8 @@ function zone_editor(grid_id, error_id, controls_id) {
   }
 
   var sti=0;
-
   function zone_record_compare(rowA, rowB) {
-    console.log(rowA, rowB);
+    console.log(sti++, rowA, rowB);
     if (rowA.type === "SOA" && rowB.type !== "SOA")
       return -1;
     if (rowA.type !== "SOA" && rowB.type === "SOA")
@@ -89,6 +88,44 @@ function zone_editor(grid_id, error_id, controls_id) {
     if (rawA.type === "PTR")
       return reverseDottedCompare(rowA.data, rowB.data);
     return naturalCompare(rowA.data, rowB.data);
+  }
+
+  function autostep_string(str) {
+    if (str === "") {
+      return "0";
+    }
+    var m = str.match(/^(.*?)(\d*)$/);
+    var prefix = m[1];
+    var digits = m[2];
+    if (digits === "") {
+      digits = 2;
+    } else {
+      digits = parseInt(digits, 10) + 1;
+    }
+    return prefix + digits;
+  }
+
+  function autostep_stringlist(lst) {
+    if (lst.length === 0) {
+      return ["1"];
+    }
+    var result = [...lst];
+    result[0] = autostep_string(result[0]);
+    return result;
+  }
+
+  function autostep_ip(ip) {
+    var ip=ip.split(".");
+    ip.reverse();
+    ip = autostep_stringlist(ip);
+    ip.reverse();
+    return ip.join(".");
+  }
+
+  function autostep_hostname(hostname) {
+    var hostname = hostname.split(".");
+    hostname = autostep_stringlist(hostname);
+    return hostname.join(".");
   }
 
   this.grid_node = document.getElementById(grid_id);
@@ -350,7 +387,6 @@ function zone_editor(grid_id, error_id, controls_id) {
     console.log("add_row");
     console.log(data);
     var default_data = {
-      "id": "",
       "name": "",
       "class": "IN",
       "type": "A",
@@ -362,7 +398,7 @@ function zone_editor(grid_id, error_id, controls_id) {
       "hidden_sorting_column": ""
     }
     var new_data = { ...default_data, ...data };
-    new_data["id"] = this.get_row_id(new_data);
+    new_data = this.autostep_row(new_data);
     this.grid_options.rowData.push(new_data);
     this.api.applyTransaction({add: [new_data]});
   }
@@ -383,6 +419,24 @@ function zone_editor(grid_id, error_id, controls_id) {
     var row_node = this.api.getRowNode(row_id);
     var to_delete = row_node.data;
     this.api.applyTransaction({remove: [to_delete]});
+  }
+
+  this.autostep_row = function(row_data) {
+    var new_data = { ...row_data };
+    while (true) {
+      new_id = this.get_row_id(new_data);
+      console.log("new_id: " + new_id);
+      if (this.api.getRowNode(new_id)) {
+        if (new_data["type"] === "A") {
+          new_data["data"] = autostep_ip(new_data["data"]);
+        } else {
+          new_data["name"] = autostep_hostname(new_data["name"]);
+        }
+        console.log(new_data);
+      } else {
+        return new_data;
+      }
+    }
   }
 }
 
