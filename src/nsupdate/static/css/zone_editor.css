@@ -1,6 +1,7 @@
 .container {
   width: auto;
   min-width: 1170px;
+  max-width: none;
 }
 
 #zone_editor_grid {
@@ -66,10 +67,12 @@
   border-right: var(--ag-border-color) solid 1px;
 }
 
+/*
 .zone-editor-state.ag-cell,
 .ag-header-cell[col-id="state"] {
   border-left: var(--ag-border-color) solid 1px;
 }
+*/
 
 .zone-editor-controls {
 }
@@ -77,16 +80,35 @@
 .zone-editor-error {
 }
 
-.ag-row-vanilla {
+.zone-editor-row-vanilla {
 }
 
-.ag-row-todel {
+.zone-editor-row-to-delete {
   background-color: #fee;
 }
 
-.ag-row-toadd {
+.zone-editor-row-to-add {
   background-color: #efe;
 }
 
 .ag-row-error {
+}
+
+.ag-ltr .ag-cell.ag-cell-focus.zone-editor-state {
+  border-color: transparent;
+}
+
+.ag-ltr .ag-cell.ag-cell-focus.zone-editor-controls {
+  border-color: transparent;
+}
+
+.ag-ltr .ag-cell.ag-cell-focus.zone-editor-error {
+  border-color: transparent;
+}
+
+.zone-editor-row-to-add .zone-editor-btn-edit,
+.zone-editor-row-vanilla .zone-editor-btn-cancel,
+.zone-editor-row-to-delete .zone-editor-btn-delete,
+.zone-editor-row-to-add .zone-editor-btn-delete {
+  display: none;
 }

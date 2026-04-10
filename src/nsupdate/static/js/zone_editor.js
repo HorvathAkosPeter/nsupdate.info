@@ -30,9 +30,8 @@ function zone_editor(grid_id, error_id, controls_id) {
     return h >>> 0; // 0 .. 2^32-1
   }
 
-  function row_hash(row) {
-    data = row.data
-    data_str = [data["name"], data["class"], data["type"], data["ttl"], data["data"]].join(rndsep);
+  function row_hash(row_data) {
+    data_str = [row_data["name"], row_data["class"], row_data["type"], row_data["ttl"], row_data["data"]].join(rndsep);
     // serialized_row = Object.keys(data).sort().map(k => `${k}:${data[k]}`).join(',');
     uint32_hash = hash32(data_str);
     str_hash = uint32_to_base64(uint32_hash);
@@ -68,6 +67,7 @@ function zone_editor(grid_id, error_id, controls_id) {
   var sti=0;
 
   function zone_record_compare(rowA, rowB) {
+    console.log(rowA, rowB);
     if (rowA.type === "SOA" && rowB.type !== "SOA")
       return -1;
     if (rowA.type !== "SOA" && rowB.type === "SOA")
@@ -83,7 +83,7 @@ function zone_editor(grid_id, error_id, controls_id) {
     if (rowA.class !== rowB.class)
       return naturalCompare(rowA.class, rowB.class);
     if (rowA.data === rowB.data)
-      return naturalCompare(rowA.ttl, rowB.ttl);
+      return rowA.ttl - rowB.ttl;
     if (rowA.type === "A")
       return dottedCompare(rowA.data, rowB.data);
     if (rawA.type === "PTR")
@@ -145,18 +145,21 @@ function zone_editor(grid_id, error_id, controls_id) {
       params.api.onSortChanged();
     },
     getRowId: function(row) {
-      id = row_hash(row);
-      // console.log(JSON.stringify(row.data) + " " + id);
-      return id;
+      return this_.get_row_id(row.data);
     },
     getRowClass: function(params) {
-      row_class = "ag-row-" + params.data.state;
+      row_class = "zone-editor-row-" + params.data.state;
       if (is_nonemptystring(params.data.error)) {
         row_class = [row_class, "row-error"];
       }
       return row_class;
     }
   };
+
+  this.get_row_id = function(row_data) {
+    id = row_hash(row_data);
+    return id;
+  }
 
   this.set_error = function(error) {
     this.error = error;
@@ -167,6 +170,10 @@ function zone_editor(grid_id, error_id, controls_id) {
       zone_editor_error.style.display = "none";
       zone_editor_error.innerHTML = "";
     }
+  }
+
+  this.serious_error = function() {
+    this.set_error("Serious error - save your changes not applied yet");
   }
 
   this.recalc_width = function(params) {
@@ -231,6 +238,7 @@ function zone_editor(grid_id, error_id, controls_id) {
       row["state"] = "vanilla";
       row["controls"] = "";
       row["error"] = "";
+      row["hidden_sorting_column"] = "";
     });
     this.grid_options.rowData = data["records"];
     this.set_error(data["error"]);
@@ -244,47 +252,137 @@ function zone_editor(grid_id, error_id, controls_id) {
 
   this.control_cell_html = function(gridparams) {
     var buttons=[
-      ['delete', this_.on_control_click_delete],
-      ['clone', this_.on_control_click_clone],
-      ['edit', this_.on_control_click_edit],
-      ['cancel', this_.on_control_click_cancel]
+      ['clone', this_.on_control_click_clone, ['fa-solid', 'fa-clone']],
+      ['edit', this_.on_control_click_edit, ['fa-solid', 'fa-pen-to-square']],
+      ['cancel', this_.on_control_click_cancel, ['fa-solid', 'fa-xmark']],
+      ['delete', this_.on_control_click_delete, ['fa-regular', 'fa-trash-can']]
     ];
-    var el = document.createElement('span');
+    var controls_node = document.createElement('span');
     for (button of buttons) {
       var button_node = document.createElement('button');
       var button_name = button[0];
       var button_onclick = button[1];
-      el.append(button_node, ' ');
+      var icon_node = document.createElement('i');
+      var icon_classlist = button[2];
+      icon_node.classList.add.apply(icon_node.classList, icon_classlist);
       button_node.type = 'button';
-      button_node.textContent = button_name;
       button_node.classList.add('btn', 'btn-xs', 'btn-primary', 'zone-editor-btn-' + button_name);
+      button_node.append(icon_node);
+      button_label = document.createTextNode(' ' + button_name);
+      button_node.appendChild(button_label);
+      controls_node.append(button_node, ' ');
       this_.add_click_listener(button_node, button_onclick, gridparams);
     }
-    return el;
+    return controls_node;
   }
 
   this.add_click_listener = function(button_node, button_onclick, gridparams) {
     button_node.addEventListener('click', function(params) { button_onclick.bind(this_)(gridparams); });
   }
 
-  this.on_control_click_edit = function(params) {
-    console.log("edit");
-    console.log(params);
-  }
-
-  this.on_control_click_cancel  = function(params) {
-    console.log("cancel");
-    console.log(params);
-  }
-
+  // vanilla: new copy with the "to-add" state.
+  // to-delete: new copy with "to-add" state.
+  // to-add: new copy with "to-add" state.
   this.on_control_click_clone = function(params) {
     console.log("clone");
     console.log(params);
+    switch (params.data["state"]) {
+      case "vanilla":
+      case "to-add":
+      case "to-delete":
+        this.add_row({...params.data, "state": "to-add"});
+        break;
+      default:
+        this.serious_error();
+    }
   }
 
+  // vanilla: changes row to "to-delete" state, creates a clone as "to-add" state.
+  // to-delete: should not be visible
+  // to-add: should not be visible, but the fields should be visually editable (like an iron icon in all columns)
+  this.on_control_click_edit = function(params) {
+    console.log("edit");
+    console.log(params);
+    switch (params.data["state"]) {
+      case "vanilla":
+        this.update_row(params.node.id, {"state": "to-delete"});
+        this.add_row({...params.data, "state": "to-add"});
+        break;
+      default:
+        this.serious_error();
+    }
+  }
+
+  // vanilla: does not show
+  // to-delete: changes back to "vanilla"
+  // to-add: deletes row
+  this.on_control_click_cancel  = function(params) {
+    console.log("cancel");
+    console.log(params);
+    switch (params.data["state"]) {
+      case "to-delete":
+        this.update_row(params.node.id, {"state": "vanilla"});
+        break;
+      case "to-add":
+        this.delete_row(params.node.id);
+        break;
+      default:
+        this.serious_error();
+    }
+  }
+
+  // vanilla: changes to "to-delete"
+  // to-delete: does not show
+  // to-add: does not show
   this.on_control_click_delete = function(params) {
     console.log("delete");
     console.log(params);
+    switch (params.data["state"]) {
+      case "vanilla":
+        this.update_row(params.node.id, {"state": "to-delete"});
+        break;
+      default:
+        this.serious_error();
+    }
+  }
+
+  this.add_row = function(data) {
+    console.log("add_row");
+    console.log(data);
+    var default_data = {
+      "id": "",
+      "name": "",
+      "class": "IN",
+      "type": "A",
+      "ttl": "3600",
+      "data": "",
+      "state": "to-add",
+      "controls": "",
+      "error": "",
+      "hidden_sorting_column": ""
+    }
+    var new_data = { ...default_data, ...data };
+    new_data["id"] = this.get_row_id(new_data);
+    this.grid_options.rowData.push(new_data);
+    this.api.applyTransaction({add: [new_data]});
+  }
+
+  this.update_row = function(row_id, data) {
+    var row_node = this.api.getRowNode(row_id);
+    var updated = { ...row_node.data, ...data};
+    this.api.applyTransaction({update: [updated]});
+    this.api.redrawRows({rowNodes: [row_node]});
+  }
+
+  this.clone_row = function(row_id) {
+    this.update_row(row_id, {"state": "to-delete"});
+    this.add_row({...params.data, "state": "to-add"});
+  }
+
+  this.delete_row = function(row_id) {
+    var row_node = this.api.getRowNode(row_id);
+    var to_delete = row_node.data;
+    this.api.applyTransaction({remove: [to_delete]});
   }
 }
 
