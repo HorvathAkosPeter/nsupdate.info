@@ -1,9 +1,11 @@
 function zone_editor(grid_id, error_id, controls_id) {
+  this_ = this;
+
+  var rndsep = Math.floor(Math.random() * 9e6).toString(36);
+
   function is_nonemptystring(str) {
     return typeof str === 'string' && str.length > 0;
   }
-
-  var rndsep = Math.floor(Math.random() * 9e6).toString(36);
 
   function uint32_to_base64(n) {
     n = n >>> 0; // ensure unsigned 32-bit
@@ -32,9 +34,9 @@ function zone_editor(grid_id, error_id, controls_id) {
 
   function row_hash(row_data) {
     data_str = [row_data["name"], row_data["class"], row_data["type"], row_data["ttl"], row_data["data"]].join(rndsep);
-    // serialized_row = Object.keys(data).sort().map(k => `${k}:${data[k]}`).join(',');
     uint32_hash = hash32(data_str);
     str_hash = uint32_to_base64(uint32_hash);
+    // console.error("row_hash", row_data, str_hash);
     return str_hash;
   }
 
@@ -64,9 +66,9 @@ function zone_editor(grid_id, error_id, controls_id) {
     return arrayNaturalCompare(ar1, ar2);
   }
 
-  var sti=0;
+  // var sti=0;
   function zone_record_compare(rowA, rowB) {
-    console.log(sti++, rowA, rowB);
+    // console.log(sti++, rowA, rowB);
     if (rowA.type === "SOA" && rowB.type !== "SOA")
       return -1;
     if (rowA.type !== "SOA" && rowB.type === "SOA")
@@ -128,6 +130,11 @@ function zone_editor(grid_id, error_id, controls_id) {
     return hostname.join(".");
   }
 
+  function editable(params) {
+    console.log("editable", params);
+    return params.data.state === "to-add";
+  }
+
   this.grid_node = document.getElementById(grid_id);
   this.error_node = document.getElementById(error_id);
   this.controls_node = document.getElementById(controls_id);
@@ -135,22 +142,21 @@ function zone_editor(grid_id, error_id, controls_id) {
   this.api = false;
   this.inited = false;
 
-  this_ = this;
   this.controls_node.addEventListener('click', function() { this_.reload_clicked(); });
 
   this.grid_options = {
     columnDefs: [
-      { headerName: "name", field: "name", cellClass: "zone-editor-name" },
-      { headerName: "class", field: "class", cellClass: "zone-editor-class" },
-      { headerName: "type", field: "type", cellClass: "zone-editor-type" },
-      { headerName: "ttl", field: "ttl", cellClass: "zone-editor-ttl" },
-      { headerName: "data", field: "data", cellClass: "zone-editor-data" },
-      { headerName: "state", field: "state", cellClass: "zone-editor-state" },
-      { headerName: "controls", field: "controls", cellClass: "zone-editor-controls",
+      { headerName: "name", field: "name", cellClass: "zone-editor-name", sortable: true, editable: editable },
+      { headerName: "class", field: "class", cellClass: "zone-editor-class", sortable: true, editable: editable },
+      { headerName: "type", field: "type", cellClass: "zone-editor-type", sortable: true, editable: editable },
+      { headerName: "ttl", field: "ttl", cellClass: "zone-editor-ttl", sortable: true, editable: editable },
+      { headerName: "data", field: "data", cellClass: "zone-editor-data", sortable: true, editable: editable },
+      { headerName: "state", field: "state", cellClass: "zone-editor-state", editable: false },
+      { headerName: "controls", field: "controls", cellClass: "zone-editor-controls", editable: false,
         cellRenderer: function(params) { return this_.control_cell_html(params); }
       },
-      { headerName: "error", field: "error", cellClass: "zone-editor-error" },
-      { headerName: "hidden_sorting_column", field: "hidden_sorting_column", sortable: true, hide: true,
+      // { headerName: "error", field: "error", cellClass: "zone-editor-error" },
+      { headerName: "hidden_sorting_column", field: "hidden_sorting_column", sortable: true, hide: true, editable: false,
         comparator: function(valueA, valueB, nodeA, nodeB) { return zone_record_compare(nodeA.data, nodeB.data); }
       }
     ],
@@ -181,20 +187,26 @@ function zone_editor(grid_id, error_id, controls_id) {
       params.api.refreshClientSideRowModel('sort');
       params.api.onSortChanged();
     },
+    onCellValueChanged: function(params) {
+      this_.on_cell_value_changed(params);
+    },
     getRowId: function(row) {
       return this_.get_row_id(row.data);
     },
     getRowClass: function(params) {
       row_class = "zone-editor-row-" + params.data.state;
+      /*
       if (is_nonemptystring(params.data.error)) {
         row_class = [row_class, "row-error"];
       }
+      */
       return row_class;
     }
   };
 
   this.get_row_id = function(row_data) {
     id = row_hash(row_data);
+    console.log("get_row_id", id, row_data);
     return id;
   }
 
@@ -210,7 +222,7 @@ function zone_editor(grid_id, error_id, controls_id) {
   }
 
   this.serious_error = function() {
-    this.set_error("Serious error - save your changes not applied yet");
+    this.set_error("Serious error - save your not applied changes");
   }
 
   this.recalc_width = function(params) {
@@ -274,7 +286,7 @@ function zone_editor(grid_id, error_id, controls_id) {
     data.records.forEach(row => {
       row["state"] = "vanilla";
       row["controls"] = "";
-      row["error"] = "";
+      // row["error"] = "";
       row["hidden_sorting_column"] = "";
     });
     this.grid_options.rowData = data["records"];
@@ -394,7 +406,7 @@ function zone_editor(grid_id, error_id, controls_id) {
       "data": "",
       "state": "to-add",
       "controls": "",
-      "error": "",
+      // "error": "",
       "hidden_sorting_column": ""
     }
     var new_data = { ...default_data, ...data };
@@ -437,6 +449,33 @@ function zone_editor(grid_id, error_id, controls_id) {
         return new_data;
       }
     }
+  }
+
+  this.on_cell_value_changed = function(params) {
+    // changed field name: params.column.colId
+    // changed row data (new data): params.data
+    // changed row, old id: params.node.id
+    // changed row, new id: must be calculated
+    // old value: params.oldValue
+    // new value: params.newValue
+    console.log('on_cell_value_changed', params, this.get_row_id(params.data));
+    // this.update_row(params.node.id, params.data);
+    var old_id = params.node.id;
+    var new_data = params.data;
+    var new_id = this.get_row_id(params.data);
+    // this.delete_row(old_id);
+    // this.add_row(new_data);
+    console.log(this.grid_options.rowData);
+    // this.update_row(new_id, new_data);
+    this.api.refreshCells({force: true});
+    // this.api.refreshClientSideRowModel('sort');
+    // this.api.setSortModel(this.api.getSortModel());
+    this.api.setColumnState({
+      state: [{colId: 'hidden_sorting_column', sort: 'asc', sortIndex: 0}],
+      defaultState: { sort: null }
+    });
+    this.api.refreshClientSideRowModel('sort');
+    // this.api.onSortChanged();
   }
 }
 

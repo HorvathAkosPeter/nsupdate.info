@@ -112,3 +112,19 @@
 .zone-editor-row-to-add .zone-editor-btn-delete {
   display: none;
 }
+
+.zone-editor-row-to-add .zone-editor-name::after,
+.zone-editor-row-to-add .zone-editor-class::after,
+.zone-editor-row-to-add .zone-editor-type::after,
+.zone-editor-row-to-add .zone-editor-ttl::after,
+.zone-editor-row-to-add .zone-editor-data::after {
+  /* content: var(--fa); */
+  content: " \f044";
+  font-family: "Font Awesome 7 Free";
+  /*
+  position: absolute;
+  right: 0;
+  top: 0;
+  */
+  opacity: 0.5;
+}
