@@ -38,7 +38,8 @@ function zone_editor(grid_id, error_id, controls_id) {
         this_.serious_error();
       }
     });
-    data_str = [row_data["name"], row_data["class"], row_data["type"], row_data["ttl"], row_data["data"]].join(rndsep);
+    // data_str = [row_data["name"], row_data["class"], row_data["type"], row_data["ttl"], row_data["data"]].join(rndsep);
+    data_str = [row_data["name"], row_data["class"], row_data["type"], row_data["data"]].join(rndsep);
     uint32_hash = hash32(data_str);
     str_hash = uint32_to_base64(uint32_hash);
     // console.error("row_hash", row_data, str_hash);
@@ -147,21 +148,121 @@ function zone_editor(grid_id, error_id, controls_id) {
   this.api = false;
   this.inited = false;
 
-  this.controls_node.addEventListener('click', function() { this_.reload_clicked(); });
+  this.control_buttons = {};
+
+  this.init_main_controls = function() {
+    Object.keys(this.main_controls).forEach(function(name) {
+      var b = this_.controls_node.querySelector('.zone_editor_' + name);
+      this_.control_buttons[name] = b;
+      var handler = this_.main_controls[name];
+      b.addEventListener('click', function() { this_.main_controls[name].bind(this_)(); });
+    });
+  }
+
+  this.control_reload_click = function() {
+    console.log('reload');
+    this.start_dl_animation();
+    rest_url = new URL('../zone_json/', window.location.href).href;
+    fetch(rest_url)
+      .then(function(response) {
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        } else {
+          return response.json();
+        }
+      })
+      .then(function(json_data) {
+        this_.new_data_cb(json_data);
+      })
+      .catch(function(err) {
+        this_.stop_dl_animation();
+        this_.set_error(err);
+      });
+  }
+
+  this.control_discard_click = function() {
+    console.log('discard');
+  }
+
+  this.control_apply_click = function() {
+    console.log('apply');
+  }
+
+  this.control_changes_only_click = function() {
+    console.log('changes_only');
+  }
+
+  this.control_new_record_click = function() {
+    console.log('new record');
+  }
+
+  this.control_script_click = function() {
+    console.log('script');
+  }
+
+  this.main_controls = {
+    "reload": this.control_reload_click,
+    "discard": this.control_discard_click,
+    "apply": this.control_apply_click,
+    "changes_only": this.control_changes_only_click,
+    "new_record": this.control_new_record_click,
+    "script": this.control_script_click
+  }
 
   this.grid_options = {
     columnDefs: [
-      { headerName: "name", field: "name", cellClass: "zone-editor-name", sortable: true, editable: editable },
-      { headerName: "class", field: "class", cellClass: "zone-editor-class", sortable: true, editable: editable },
-      { headerName: "type", field: "type", cellClass: "zone-editor-type", sortable: true, editable: editable },
-      { headerName: "ttl", field: "ttl", cellClass: "zone-editor-ttl", sortable: true, editable: editable },
-      { headerName: "data", field: "data", cellClass: "zone-editor-data", sortable: true, editable: editable },
-      { headerName: "state", field: "state", cellClass: "zone-editor-state", editable: false },
-      { headerName: "controls", field: "controls", cellClass: "zone-editor-controls", editable: false,
+      { headerName: "name",
+        field: "name",
+        cellClass: "zone-editor-name",
+        sortable: true,
+        editable: editable,
+        valueSetter: function(params) { return this_.value_setter(params); } 
+      },
+      { headerName: "class",
+        field: "class",
+        cellClass: "zone-editor-class",
+        sortable: true,
+        editable: editable,
+        valueSetter: function(params) { return this_.value_setter(params); } 
+      },
+      { headerName: "type",
+        field: "type",
+        cellClass: "zone-editor-type",
+        sortable: true,
+        editable: editable,
+        valueSetter: function(params) { return this_.value_setter(params); } 
+      },
+      { headerName: "ttl",
+        field: "ttl",
+        cellClass: "zone-editor-ttl",
+        sortable: true,
+        editable: editable,
+        valueSetter: function(params) { return this_.value_setter(params); } 
+      },
+      { headerName: "data",
+        field: "data",
+        cellClass: "zone-editor-data",
+        sortable: true,
+        editable: editable,
+        valueSetter: function(params) { return this_.value_setter(params); } 
+      },
+      { headerName: "state",
+        field: "state",
+        cellClass: "zone-editor-state",
+        editable: false
+      },
+      { headerName: "controls",
+        field: "controls",
+        cellClass: "zone-editor-controls",
+        editable: false,
         cellRenderer: function(params) { return this_.control_cell_html(params); }
       },
-      // { headerName: "error", field: "error", cellClass: "zone-editor-error" },
-      { headerName: "sort", field: "hidden_sorting_column", sortable: true, //hide: true,
+      { headerName: "sort",
+        field: "natural_sort",
+        sortable: true,
+        resizable: false,
+        minWidth: 48,
+        //hide: true,
         editable: false,
         comparator: function(valueA, valueB, nodeA, nodeB) { return zone_record_compare(nodeA.data, nodeB.data); }
       }
@@ -187,7 +288,7 @@ function zone_editor(grid_id, error_id, controls_id) {
       this_.api = params.api;
       this_.inited = true;
       params.api.applyColumnState({
-        state: [{colId: 'hidden_sorting_column', sort: 'asc', sortIndex: 0}],
+        state: [{colId: 'natural_sort', sort: 'asc', sortIndex: 0}],
         defaultState: { sort: null }
       });
       params.api.refreshClientSideRowModel('sort');
@@ -217,7 +318,7 @@ function zone_editor(grid_id, error_id, controls_id) {
     } else {
       id = row_hash(row_data);
     }
-    console.error("get_row_id", id, row_data);
+    // console.error("get_row_id", id, row_data);
     return id;
   }
 
@@ -273,32 +374,12 @@ function zone_editor(grid_id, error_id, controls_id) {
     this.controls_node.querySelector(".reload-icon").classList.remove("pulse");
   }
 
-  this.reload_clicked = function() {
-    this.start_dl_animation();
-    rest_url = new URL('../zone_json/', window.location.href).href;
-    fetch(rest_url)
-      .then(function(response) {
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        } else {
-          return response.json();
-        }
-      })
-      .then(function(json_data) {
-        this_.new_data_cb(json_data);
-      })
-      .catch(function(err) {
-        this_.stop_dl_animation();
-        this_.set_error(err);
-      });
-  };
-
   this.new_data_cb = function(data) {
     data.records.forEach(row => {
       row["state"] = "vanilla";
       row["controls"] = "";
       // row["error"] = "";
-      row["hidden_sorting_column"] = "";
+      row["natural_sort"] = "";
     });
     this.grid_options.rowData = data["records"];
     this.set_error(data["error"]);
@@ -311,7 +392,7 @@ function zone_editor(grid_id, error_id, controls_id) {
   }
 
   this.control_cell_html = function(gridparams) {
-    console.error('control_cell_html', gridparams);
+    // console.error('control_cell_html', gridparams);
     var buttons=[
       ['clone', this_.on_control_click_clone, ['fa-solid', 'fa-clone']],
       ['edit', this_.on_control_click_edit, ['fa-solid', 'fa-pen-to-square']],
@@ -362,8 +443,8 @@ function zone_editor(grid_id, error_id, controls_id) {
   // to-delete: should not be visible
   // to-add: should not be visible, but the fields should be visually editable (like an iron icon in all columns)
   this.on_control_click_edit = function(params) {
-    console.log("edit");
-    console.log(params);
+    // console.log("edit");
+    // console.log(params);
     switch (params.data["state"]) {
       case "vanilla":
         this.update_row(params.node.id, {"state": "to-delete"});
@@ -378,8 +459,8 @@ function zone_editor(grid_id, error_id, controls_id) {
   // to-delete: changes back to "vanilla"
   // to-add: deletes row
   this.on_control_click_cancel  = function(params) {
-    console.log("cancel");
-    console.log(params);
+    // console.log("cancel");
+    // console.log(params);
     switch (params.data["state"]) {
       case "to-delete":
         this.update_row(params.node.id, {"state": "vanilla"});
@@ -396,8 +477,8 @@ function zone_editor(grid_id, error_id, controls_id) {
   // to-delete: does not show
   // to-add: does not show
   this.on_control_click_delete = function(params) {
-    console.log("delete");
-    console.log(params);
+    // console.log("delete");
+    // console.log(params);
     switch (params.data["state"]) {
       case "vanilla":
         this.update_row(params.node.id, {"state": "to-delete"});
@@ -419,12 +500,14 @@ function zone_editor(grid_id, error_id, controls_id) {
       "state": "to-add",
       "controls": "",
       // "error": "",
-      "hidden_sorting_column": ""
+      "natural_sort": ""
     }
     var new_data = { ...default_data, ...data };
     new_data = this.autostep_row(new_data);
     this.grid_options.rowData.push(new_data);
     this.api.applyTransaction({add: [new_data]});
+    this.api.redrawRows({rowNodes: [new_data]});
+    this.api.refreshCells({force: true});
   }
 
   this.update_row = function(row_id, data) {
@@ -447,6 +530,7 @@ function zone_editor(grid_id, error_id, controls_id) {
   }
 
   this.autostep_row = function(row_data) {
+    console.log("autostep_row", row_data);
     var new_data = { ...row_data };
     while (true) {
       new_id = this.get_row_id(new_data);
@@ -457,8 +541,8 @@ function zone_editor(grid_id, error_id, controls_id) {
         } else {
           new_data["name"] = autostep_hostname(new_data["name"]);
         }
-        // console.log(new_data);
       } else {
+        console.log(new_data);
         return new_data;
       }
     }
@@ -476,6 +560,11 @@ function zone_editor(grid_id, error_id, controls_id) {
     console.log(td);
   }
 
+  this.value_setter = function(params) {
+    console.log('value_setter', params);
+    return true;
+  }
+
   this.on_cell_value_changed = function(params) {
     // changed field name: params.column.colId
     // changed row data (new data): params.data
@@ -483,30 +572,19 @@ function zone_editor(grid_id, error_id, controls_id) {
     // changed row, new id: must be calculated
     // old value: params.oldValue
     // new value: params.newValue
-    console.log('on_cell_value_changed');
-    // console.log(this.grid_options.rowData);
-    this.do_dump();
-    // this.update_row(params.node.id, params.data);
     var old_id = params.node.id;
     var new_data = params.data;
     var new_id = this.get_row_id(params.data);
-    console.log('old id: ', old_id, 'new id: ', new_id, 'new data: ', new_data);
+    var row_index = params.rowIndex;
+    console.log('on_cell_value_changed', 'params', params, 'row_index: ', row_index, 'old id: ', old_id, 'new id: ', new_id, 'new data: ', new_data);
 
     // this.delete_row(old_id);
     // this.add_row(new_data);
     // this.update_row(new_id, new_data);
     this.api.refreshCells({force: true});
-    // this.api.refreshClientSideRowModel('sort');
-    // this.api.setSortModel(this.api.getSortModel());
-    /*
-    this.api.setColumnState({
-      state: [{colId: 'hidden_sorting_column', sort: 'asc', sortIndex: 0}],
-      defaultState: { sort: null }
-    });
-    this.api.refreshClientSideRowModel('sort');
-    */
-    // this.api.onSortChanged();
   }
+
+  this.init_main_controls();
 }
 
 var zone_editor_obj = new zone_editor('zone_editor_grid', 'zone_editor_error', 'zone_editor_controls');

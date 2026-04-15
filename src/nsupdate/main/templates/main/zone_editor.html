@@ -12,13 +12,32 @@
 
 {% block content %}
     <div id="zone_editor_error" class="alert alert-danger" style="display: none"></div>
-    <div id="zone_editor_controls">
-      <button class="btn btn-xs btn-primary"><i class="fa-solid fa-arrow-rotate-right pulse reload-icon"></i> reload</button>
-      <button class="btn btn-xs btn-primary"><i class="fa-solid fa-ban"></i> discard</button>
-      <button class="btn btn-xs btn-primary"><i class="fa-solid fa-arrow-up-from-bracket"></i> apply</button>
-      <button class="btn btn-xs btn-primary"><i class="fa-solid fa-code-compare"></i> changes only</button>
-      <button class="btn btn-xs btn-primary"><i class="fa-solid fa-circle-plus"></i> new record</button>
-      <button class="btn btn-xs btn-primary"><i class="fa-solid fa-code"></i> script</button>
+    <div class="row">
+      <div class="col-md-6">
+        <div class="card card-body">
+          <ul>
+            <li>Here you can delete or add new zone resource records (RRs). To modify a record, clone and delete it. Only newly added (green)
+              records can be edited.</li>
+            <li>The "Edit" button only clones the record and deletes the original.</li>
+            <li>All the changes are applied in a single, atomic operation, if you click the "Apply" button.</li>
+            <li>There is no data validation on the client side. There is also no guarantee that the DNS will accept your modifications.</li>
+            <li>The "sort" column is only to have a feasible sorting: It tries to group data by their sub-domains.
+              It also handles naturally the string data with embedded numbers.</li>
+            <li>There is no way to have multiple rows with exactly the same (name, class, type, data) fields here.
+              If you try to, it will be auto-stepped.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card card-body" id="zone_editor_controls">
+          <button class="btn btn-xs btn-primary zone_editor_reload"><i class="fa-solid fa-arrow-rotate-right pulse reload-icon"></i> reload</button>
+          <button class="btn btn-xs btn-primary zone_editor_discard"><i class="fa-solid fa-ban"></i> discard</button>
+          <button class="btn btn-xs btn-primary zone_editor_apply"><i class="fa-solid fa-arrow-up-from-bracket"></i> apply</button>
+          <button class="btn btn-xs btn-primary zone_editor_changes_only"><i class="fa-solid fa-code-compare"></i> changes only</button>
+          <button class="btn btn-xs btn-primary zone_editor_new_record"><i class="fa-solid fa-circle-plus"></i> new record</button>
+          <button class="btn btn-xs btn-primary zone_editor_script"><i class="fa-solid fa-code"></i> script</button>
+        </div>
+      </div>
     </div>
     <div id="zone_editor_grid" class="ag-theme-alpine"></div>
 {% endblock %}
