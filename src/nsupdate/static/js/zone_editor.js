@@ -33,6 +33,11 @@ function zone_editor(grid_id, error_id, controls_id) {
   }
 
   function row_hash(row_data) {
+    ["name", "class", "type", "ttl", "data"].forEach(function(f) {
+      if (!(f in row_data)) {
+        this_.serious_error();
+      }
+    });
     data_str = [row_data["name"], row_data["class"], row_data["type"], row_data["ttl"], row_data["data"]].join(rndsep);
     uint32_hash = hash32(data_str);
     str_hash = uint32_to_base64(uint32_hash);
@@ -156,7 +161,8 @@ function zone_editor(grid_id, error_id, controls_id) {
         cellRenderer: function(params) { return this_.control_cell_html(params); }
       },
       // { headerName: "error", field: "error", cellClass: "zone-editor-error" },
-      { headerName: "hidden_sorting_column", field: "hidden_sorting_column", sortable: true, hide: true, editable: false,
+      { headerName: "sort", field: "hidden_sorting_column", sortable: true, //hide: true,
+        editable: false,
         comparator: function(valueA, valueB, nodeA, nodeB) { return zone_record_compare(nodeA.data, nodeB.data); }
       }
     ],
@@ -205,8 +211,13 @@ function zone_editor(grid_id, error_id, controls_id) {
   };
 
   this.get_row_id = function(row_data) {
-    id = row_hash(row_data);
-    console.log("get_row_id", id, row_data);
+    var id;
+    if ("id" in row_data) {
+      id = row_data["id"];
+    } else {
+      id = row_hash(row_data);
+    }
+    console.error("get_row_id", id, row_data);
     return id;
   }
 
@@ -300,6 +311,7 @@ function zone_editor(grid_id, error_id, controls_id) {
   }
 
   this.control_cell_html = function(gridparams) {
+    console.error('control_cell_html', gridparams);
     var buttons=[
       ['clone', this_.on_control_click_clone, ['fa-solid', 'fa-clone']],
       ['edit', this_.on_control_click_edit, ['fa-solid', 'fa-pen-to-square']],
@@ -333,8 +345,8 @@ function zone_editor(grid_id, error_id, controls_id) {
   // to-delete: new copy with "to-add" state.
   // to-add: new copy with "to-add" state.
   this.on_control_click_clone = function(params) {
-    console.log("clone");
-    console.log(params);
+    // console.log("clone");
+    // console.log(params);
     switch (params.data["state"]) {
       case "vanilla":
       case "to-add":
@@ -396,8 +408,8 @@ function zone_editor(grid_id, error_id, controls_id) {
   }
 
   this.add_row = function(data) {
-    console.log("add_row");
-    console.log(data);
+    // console.log("add_row");
+    // console.log(data);
     var default_data = {
       "name": "",
       "class": "IN",
@@ -430,25 +442,38 @@ function zone_editor(grid_id, error_id, controls_id) {
   this.delete_row = function(row_id) {
     var row_node = this.api.getRowNode(row_id);
     var to_delete = row_node.data;
-    this.api.applyTransaction({remove: [to_delete]});
+    // this.api.applyTransaction({remove: [to_delete]});
+    this.api.applyTransaction({remove: [{id: row_id}]});
   }
 
   this.autostep_row = function(row_data) {
     var new_data = { ...row_data };
     while (true) {
       new_id = this.get_row_id(new_data);
-      console.log("new_id: " + new_id);
+      // console.error("new_id: " + new_id);
       if (this.api.getRowNode(new_id)) {
         if (new_data["type"] === "A") {
           new_data["data"] = autostep_ip(new_data["data"]);
         } else {
           new_data["name"] = autostep_hostname(new_data["name"]);
         }
-        console.log(new_data);
+        // console.log(new_data);
       } else {
         return new_data;
       }
     }
+  }
+
+  this.do_dump = function() {
+    var td=[]
+    // console.log("test1", this.grid_options.rowData);
+    this.grid_options.rowData.forEach(function(p) {
+      // console.log(p)
+      var q = {...p};
+      q["id"] = row_hash(q);
+      td.push(q);
+    });
+    console.log(td);
   }
 
   this.on_cell_value_changed = function(params) {
@@ -458,23 +483,28 @@ function zone_editor(grid_id, error_id, controls_id) {
     // changed row, new id: must be calculated
     // old value: params.oldValue
     // new value: params.newValue
-    console.log('on_cell_value_changed', params, this.get_row_id(params.data));
+    console.log('on_cell_value_changed');
+    // console.log(this.grid_options.rowData);
+    this.do_dump();
     // this.update_row(params.node.id, params.data);
     var old_id = params.node.id;
     var new_data = params.data;
     var new_id = this.get_row_id(params.data);
+    console.log('old id: ', old_id, 'new id: ', new_id, 'new data: ', new_data);
+
     // this.delete_row(old_id);
     // this.add_row(new_data);
-    console.log(this.grid_options.rowData);
     // this.update_row(new_id, new_data);
     this.api.refreshCells({force: true});
     // this.api.refreshClientSideRowModel('sort');
     // this.api.setSortModel(this.api.getSortModel());
+    /*
     this.api.setColumnState({
       state: [{colId: 'hidden_sorting_column', sort: 'asc', sortIndex: 0}],
       defaultState: { sort: null }
     });
     this.api.refreshClientSideRowModel('sort');
+    */
     // this.api.onSortChanged();
   }
 }
