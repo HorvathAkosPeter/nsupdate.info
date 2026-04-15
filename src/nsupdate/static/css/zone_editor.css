@@ -133,3 +133,10 @@
   */
   opacity: 0.5;
 }
+
+.zone-editor-button-pressed,
+.zone-editor-button-pressed:hover {
+  /* border-color: var(--bs-btn-color); */
+  background-color: var(--bs-btn-color);
+  color: var(--bs-btn-bg);
+}
