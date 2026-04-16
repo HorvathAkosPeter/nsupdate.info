@@ -11,7 +11,7 @@
 {% endblock %}
 
 {% block content %}
-    <div id="zone_editor_error" class="alert alert-danger" style="display: none"></div>
+    <div id="zone_editor_error" class="alert alert-dismissable" style="display: none"></div>
     <div class="row justify-content-center">
       <div class="col-md-6" id="zone_editor_help">
         <div class="card card-body">
@@ -30,9 +30,9 @@
       </div>
       <div class="col-md-6">
         <div class="card card-body" id="zone_editor_controls">
-          <button class="btn btn-xs btn-primary zone_editor_reload"><i class="fa-solid fa-arrow-rotate-right pulse reload-icon"></i> reload</button>
+          <button class="btn btn-xs btn-primary zone_editor_reload"><i class="fa-solid fa-arrow-rotate-right pulse zone_editor_reload_icon"></i> reload</button>
           <button class="btn btn-xs btn-primary zone_editor_discard"><i class="fa-solid fa-ban"></i> discard</button>
-          <button class="btn btn-xs btn-primary zone_editor_apply"><i class="fa-solid fa-arrow-up-from-bracket"></i> apply</button>
+          <button class="btn btn-xs btn-primary zone_editor_apply"><i class="fa-solid fa-arrow-up-from-bracket zone_editor_apply_icon"></i> apply</button>
           <button class="btn btn-xs btn-primary zone_editor_changes_only"><i class="fa-solid fa-code-compare"></i> changes only</button>
           <button class="btn btn-xs btn-primary zone_editor_new_record"><i class="fa-solid fa-circle-plus"></i> new record</button>
           <button class="btn btn-xs btn-primary zone_editor_script"><i class="fa-solid fa-code"></i> script</button>

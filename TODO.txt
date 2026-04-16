@@ -16,6 +16,12 @@
 - /delete method with GET should result a HTML "are you sure" page. With POST it should delete, then put a feedback with a link to the overview.
 
 ---
-For PR:
-- everything must work
-- sortable columns
+For the zone editor PR:
+DONE error msg from javascript, tuning
+- "@.domain.name", ugly
+- show domain name in title
+- apply button, serverside
+- reload button finish
+- script button finish
+- zone editor should follow zone permissions
+- ansible deployment

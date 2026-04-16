@@ -147,7 +147,6 @@ function zone_editor(grid_id, error_id, controls_id, help_id) {
   this.error_node = document.getElementById(error_id);
   this.controls_node = document.getElementById(controls_id);
   this.help_node = document.getElementById(help_id);
-  this.error = "";
   this.api = false;
   this.inited = false;
 
@@ -160,19 +159,19 @@ function zone_editor(grid_id, error_id, controls_id, help_id) {
       var handler = this_.main_controls[name];
       b.addEventListener('click', function() { this_.main_controls[name].bind(this_)(); });
     });
-    if (window.localStorage.getItem('zone-editor-show-help') === 'false') {
+    if (window.localStorage.getItem('zone_editor_show_help') === 'false') {
       this.control_help_click(false);
     }
   }
 
   this.control_reload_click = function() {
     console.log('reload');
-    this.start_dl_animation();
-    rest_url = new URL('../zone_json/', window.location.href).href;
+    this.start_reload_animation();
+    var rest_url = new URL('../zone_json/', window.location.href).href;
     fetch(rest_url)
       .then(function(response) {
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
+          throw new Error(`HTTP ${response.status} ${response.statusText}`);
         } else {
           return response.json();
         }
@@ -181,7 +180,7 @@ function zone_editor(grid_id, error_id, controls_id, help_id) {
         this_.new_data_cb(json_data);
       })
       .catch(function(err) {
-        this_.stop_dl_animation();
+        this_.stop_reload_animation();
         this_.set_error(err);
       });
   }
@@ -214,15 +213,47 @@ function zone_editor(grid_id, error_id, controls_id, help_id) {
 
   this.control_apply_click = function() {
     console.log('apply');
+    this.start_apply_animation();
+    var changes=[];
+    var rest_url = new URL('../zone_json/', window.location.href).href;
+    this.api.forEachNode(function(node) {
+      var data = node.data;
+      // console.log(node);
+      if (["to-delete", "to-add"].includes(data.state)) {
+        var change={
+          "name": data["name"],
+          "class": data["class"],
+          "type": data["type"],
+          "ttl": data["ttl"],
+          "data": data["data"],
+          "state": data["state"]
+        };
+        changes.push(change);
+      }
+    });
+    fetch(rest_url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(changes)
+    }).then(function(response) {
+      this_.stop_apply_animation();
+      if (!response.ok) {
+          throw new Error(`HTTP ${response.status} ${response.statusText}`);
+      }
+      this_.set_error('Server reports success. Suggestion: click "reload".');
+    }).catch(function(error) {
+      this_.stop_apply_animation();
+      this_.set_error('DNS update error: ' + error.message);
+    });
   }
 
   this.control_changes_only_click = function() {
     console.log('changes_only');
     var node = this.control_buttons["changes_only"];
-    if (node.classList.contains('zone-editor-button-pressed')) {
-      node.classList.remove('zone-editor-button-pressed');
+    if (node.classList.contains('zone_editor_button_pressed')) {
+      node.classList.remove('zone_editor_button_pressed');
     } else {
-      node.classList.add('zone-editor-button-pressed');
+      node.classList.add('zone_editor_button_pressed');
     }
     this.api.onFilterChanged();
   }
@@ -239,7 +270,7 @@ function zone_editor(grid_id, error_id, controls_id, help_id) {
   this.control_help_click = function(is_shown) {
     console.log('help');
     var show;
-    var localstore_show = window.localStorage.getItem('zone-editor-show-help');
+    var localstore_show = window.localStorage.getItem('zone_editor_show_help');
     if (localstore_show === 'true') {
       localstore_show = true;
     } else if (localstore_show === 'false') {
@@ -258,13 +289,13 @@ function zone_editor(grid_id, error_id, controls_id, help_id) {
     }
     var node = this.control_buttons["help"];
     if (show) {
-      node.classList.remove('zone-editor-button-pressed');
-      this.help_node.classList.remove('zone-editor-hide-help');
+      node.classList.remove('zone_editor_button_pressed');
+      this.help_node.classList.remove('zone_editor_hide_help');
     } else {
-      node.classList.add('zone-editor-button-pressed');
-      this.help_node.classList.add('zone-editor-hide-help');
+      node.classList.add('zone_editor_button_pressed');
+      this.help_node.classList.add('zone_editor_hide_help');
     }
-    window.localStorage.setItem('zone-editor-show-help', show);
+    window.localStorage.setItem('zone_editor_show_help', show);
   }
 
   this.main_controls = {
@@ -281,47 +312,47 @@ function zone_editor(grid_id, error_id, controls_id, help_id) {
     columnDefs: [
       { headerName: "name",
         field: "name",
-        cellClass: "zone-editor-name",
+        cellClass: "zone_editor_name",
         sortable: true,
         editable: is_editable,
         valueSetter: function(params) { return this_.value_setter(params); } 
       },
       { headerName: "class",
         field: "class",
-        cellClass: "zone-editor-class",
+        cellClass: "zone_editor_class",
         sortable: true,
         editable: is_editable,
         valueSetter: function(params) { return this_.value_setter(params); } 
       },
       { headerName: "type",
         field: "type",
-        cellClass: "zone-editor-type",
+        cellClass: "zone_editor_type",
         sortable: true,
         editable: is_editable,
         valueSetter: function(params) { return this_.value_setter(params); } 
       },
       { headerName: "ttl",
         field: "ttl",
-        cellClass: "zone-editor-ttl",
+        cellClass: "zone_editor_ttl",
         sortable: true,
         editable: is_editable,
         valueSetter: function(params) { return this_.value_setter(params); } 
       },
       { headerName: "data",
         field: "data",
-        cellClass: "zone-editor-data",
+        cellClass: "zone_editor_data",
         sortable: true,
         editable: is_editable,
         valueSetter: function(params) { return this_.value_setter(params); } 
       },
       { headerName: "state",
         field: "state",
-        cellClass: "zone-editor-state",
+        cellClass: "zone_editor_state",
         editable: false
       },
       { headerName: "controls",
         field: "controls",
-        cellClass: "zone-editor-controls",
+        cellClass: "zone_editor_controls",
         editable: false,
         cellRenderer: function(params) { return this_.control_cell_html(params); }
       },
@@ -369,7 +400,7 @@ function zone_editor(grid_id, error_id, controls_id, help_id) {
       return this_.get_row_id(row.data);
     },
     getRowClass: function(params) {
-      row_class = "zone-editor-row-" + params.data.state;
+      row_class = "zone_editor_row_" + params.data.state.replaceAll('-','_');
       /*
       if (is_nonemptystring(params.data.error)) {
         row_class = [row_class, "row-error"];
@@ -378,7 +409,7 @@ function zone_editor(grid_id, error_id, controls_id, help_id) {
       return row_class;
     },
     isExternalFilterPresent: function() {
-      return this_.control_buttons["changes_only"].classList.contains("zone-editor-button-pressed");
+      return this_.control_buttons["changes_only"].classList.contains("zone_editor_button_pressed");
     },
     doesExternalFilterPass: function(node) {
       return node.data["state"] !== "vanilla";
@@ -396,19 +427,53 @@ function zone_editor(grid_id, error_id, controls_id, help_id) {
     return id;
   }
 
-  this.set_error = function(error) {
-    this.error = error;
-    if (is_nonemptystring(this.error)) {
-      zone_editor_error.style.display = "block";
-      zone_editor_error.innerHTML = this.error;
+  this.hide_messagebox = function() {
+    this.error_node.style.display = "none";
+  }
+
+  this.set_messagebox = function(style, msg) {
+    var styles = ["success", "warning", "danger"];
+    var css_class_name = "alert-" + style;
+    styles.forEach(function(name) {
+      if (name === style) {
+        this_.error_node.classList.add(css_class_name);
+      } else {
+        this_.error_node.classList.remove(css_class_name);
+      }
+    });
+    while (this.error_node.firstChild) {
+      this.error_node.removeChild(this.error_node.lastChild);
+    }
+    if (is_nonemptystring(msg)) {
+      this.error_node.style.display = "block";
+      var btn_node = document.createElement("button");
+      btn_node.classList.add("btn-close");
+      btn_node.style.display = "block";
+      btn_node.style.float = "right";
+      var msg_node = document.createTextNode(msg);
+      this.error_node.appendChild(btn_node);
+      this.error_node.appendChild(msg_node);
+      btn_node.addEventListener('click', function() { this_.hide_messagebox(); });
     } else {
-      zone_editor_error.style.display = "none";
-      zone_editor_error.innerHTML = "";
+      this.hide_messagebox();
     }
   }
 
-  this.serious_error = function() {
+  this.set_notice = function(notice) {
+    this.set_messagebox("success", notice);
+  }
+
+  this.set_warning = function(warning) {
+    this.set_messagebox("warning", warning);
+  }
+
+  this.set_error = function(error) {
+    this.set_messagebox("danger", error);
+  }
+
+  this.serious_error = function(error) {
     this.set_error("Serious error - save your not applied changes");
+    throw new Error(error);
   }
 
   this.recalc_width = function(params) {
@@ -440,12 +505,20 @@ function zone_editor(grid_id, error_id, controls_id, help_id) {
     this.recalc_width(params);
   }
 
-  this.start_dl_animation = function() {
-    this.controls_node.querySelector(".reload-icon").classList.add("pulse");
+  this.start_reload_animation = function() {
+    this.controls_node.querySelector(".zone_editor_reload_icon").classList.add("zone_editor_reload_anim");
   }
 
-  this.stop_dl_animation = function() {
-    this.controls_node.querySelector(".reload-icon").classList.remove("pulse");
+  this.stop_reload_animation = function() {
+    this.controls_node.querySelector(".zone_editor_reload_icon").classList.remove("zone_editor_reload_anim");
+  }
+
+  this.start_apply_animation = function() {
+    this.controls_node.querySelector(".zone_editor_apply_icon").classList.add("zone_editor_apply_anim");
+  }
+
+  this.stop_apply_animation = function() {
+    this.controls_node.querySelector(".zone_editor_apply_icon").classList.remove("zone_editor_apply_anim");
   }
 
   this.new_data_cb = function(data) {
@@ -457,7 +530,7 @@ function zone_editor(grid_id, error_id, controls_id, help_id) {
     });
     this.grid_options.rowData = data["records"];
     this.set_error(data["error"]);
-    this.stop_dl_animation();
+    this.stop_reload_animation();
     if (this.inited) {
       this.api.refreshCells();
     } else {
@@ -482,7 +555,7 @@ function zone_editor(grid_id, error_id, controls_id, help_id) {
       var icon_classlist = button[2];
       icon_node.classList.add.apply(icon_node.classList, icon_classlist);
       button_node.type = 'button';
-      button_node.classList.add('btn', 'btn-xs', 'btn-primary', 'zone-editor-btn-' + button_name);
+      button_node.classList.add('btn', 'btn-xs', 'btn-primary', 'zone_editor_btn_' + button_name);
       button_node.append(icon_node);
       button_label = document.createTextNode(' ' + button_name);
       button_node.appendChild(button_label);
