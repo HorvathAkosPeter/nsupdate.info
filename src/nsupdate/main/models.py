@@ -11,7 +11,6 @@ import dns.resolver
 import dns.message
 
 from django.db import models
-from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator, MinValueValidator, MaxValueValidator
 from django.conf import settings
@@ -36,7 +35,7 @@ def result_fmt(msg):
 
 
 def make_random_password(length=10, allowed_chars='abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'):
-    return ''.join(secrets.choice(allowed_chars) for i in range(length))
+    return ''.join(secrets.choice(allowed_chars) for _ in range(length))
 
 
 class BlacklistedHost(models.Model):
@@ -69,7 +68,7 @@ def host_blacklist_validator(value):
 
 from collections import namedtuple
 
-UpdateAlgorithm = namedtuple("update_algorithm", "bitlength bind_name")
+UpdateAlgorithm = namedtuple("UpdateAlgorithm", "bitlength bind_name")
 
 UPDATE_ALGORITHM_DEFAULT = 'HMAC_SHA512'
 UPDATE_ALGORITHMS = {
@@ -177,7 +176,7 @@ class Domain(models.Model):
     comment = models.CharField(
         _("comment"),
         max_length=255,  # should be enough
-        default='', blank=True, null=True,
+        default='', blank=True,
         help_text=_("Some arbitrary comment about your domain. "
                     "If your domain is public, the comment will also be publicly shown."))
 
@@ -192,7 +191,6 @@ class Domain(models.Model):
     def generate_ns_secret(self):
         algorithm = self.nameserver_update_algorithm
         bitlength = UPDATE_ALGORITHMS[algorithm].bitlength
-        user_model = get_user_model()
         secret = make_random_password(length=bitlength // 8)
         secret = secret.encode('utf-8')
         self.nameserver_update_key_name = self.name
@@ -238,7 +236,7 @@ class Host(models.Model):
     comment = models.CharField(
         _("comment"),
         max_length=255,  # should be enough
-        default='', blank=True, null=True,
+        default='', blank=True,
         help_text=_("Some arbitrary comment about your host, e.g. who / what / where this host is"))
 
     # available means that this host may be updated (or not, if False) -
@@ -282,7 +280,7 @@ class Host(models.Model):
     client_result_msg = models.CharField(
         _("client result msg"),
         max_length=RESULT_MSG_LEN,
-        default='', blank=True, null=True,
+        default='', blank=True,
         help_text=_("Latest result message relating to the client"))
 
     # count server faults that happened when updating this host
@@ -290,7 +288,7 @@ class Host(models.Model):
     server_result_msg = models.CharField(
         _("server result msg"),
         max_length=RESULT_MSG_LEN,
-        default='', blank=True, null=True,
+        default='', blank=True,
         help_text=_("Latest result message relating to the server"))
 
     # count api auth errors - maybe caused by host owner (misconfigured update client)
@@ -298,7 +296,7 @@ class Host(models.Model):
     api_auth_result_msg = models.CharField(
         _("api auth result msg"),
         max_length=RESULT_MSG_LEN,
-        default='', blank=True, null=True,
+        default='', blank=True,
         help_text=_("Latest result message relating to api authentication"))
 
     # when we received the last update for v4/v6 addr
@@ -334,11 +332,11 @@ class Host(models.Model):
     @classmethod
     def get_by_fqdn(cls, fqdn, **kwargs):
         # Assuming subdomain has no dots (.) the fqdn is split at the first dot
-        splitted = fqdn.split('.', 1)
-        if len(splitted) != 2:
+        fqdn_parts = fqdn.split('.', 1)
+        if len(fqdn_parts) != 2:
             raise ValueError("get_by_fqdn(%s): FQDN has to contain (at least) one dot" % fqdn)
         try:
-            host = Host.objects.get(name=splitted[0], domain__name=splitted[1], **kwargs)
+            host = Host.objects.get(name=fqdn_parts[0], domain__name=fqdn_parts[1], **kwargs)
         except Host.DoesNotExist:
             return None
         except Host.MultipleObjectsReturned:
@@ -396,7 +394,6 @@ class Host(models.Model):
         # we deal with lots of automated requests here, and not all update
         # clients are well-behaved.
         if secret is None:
-            user_model = get_user_model()
             secret = make_random_password()
         # Because Django removed the "sha1" hasher we used in the past AND we need something
         # fast for the update secrets, we want "weakargon2" now.
@@ -454,7 +451,7 @@ class RelatedHost(models.Model):
     comment = models.CharField(
         _("comment"),
         max_length=255,  # should be enough
-        default='', blank=True, null=True,
+        default='', blank=True,
         help_text=_("Some arbitrary comment about your host, e.g. who / what / where this host is"))
     interface_id_ipv4 = models.CharField(
         _("interface ID IPv4"),
@@ -522,7 +519,7 @@ class ServiceUpdater(models.Model):
     comment = models.CharField(
         _("comment"),
         max_length=255,  # should be enough
-        default='', blank=True, null=True,
+        default='', blank=True,
         help_text=_("Some arbitrary comment about the service"))
     server = models.CharField(
         _("server"),
@@ -568,7 +565,7 @@ class ServiceUpdaterHostConfig(models.Model):
     comment = models.CharField(
         _("comment"),
         max_length=255,  # should be enough
-        default='', blank=True, null=True,
+        default='', blank=True,
         help_text=_("Some arbitrary comment about your host on that service"))
     # credentials for http basic auth for THAT service (not for us),
     # we need to store the password in plain text, we can't hash it
