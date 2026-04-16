@@ -1,4 +1,4 @@
-function zone_editor(grid_id, error_id, controls_id) {
+function zone_editor(grid_id, error_id, controls_id, help_id) {
   this_ = this;
 
   var rndsep = Math.floor(Math.random() * 9e6).toString(36);
@@ -43,6 +43,8 @@ function zone_editor(grid_id, error_id, controls_id) {
     uint32_hash = hash32(data_str);
     str_hash = uint32_to_base64(uint32_hash);
     // console.error("row_hash", row_data, str_hash);
+
+    // str_hash = [row_data["name"], row_data["class"], row_data["type"], row_data["ttl"], row_data["data"]].join("|");
     return str_hash;
   }
 
@@ -144,6 +146,7 @@ function zone_editor(grid_id, error_id, controls_id) {
   this.grid_node = document.getElementById(grid_id);
   this.error_node = document.getElementById(error_id);
   this.controls_node = document.getElementById(controls_id);
+  this.help_node = document.getElementById(help_id);
   this.error = "";
   this.api = false;
   this.inited = false;
@@ -157,6 +160,9 @@ function zone_editor(grid_id, error_id, controls_id) {
       var handler = this_.main_controls[name];
       b.addEventListener('click', function() { this_.main_controls[name].bind(this_)(); });
     });
+    if (window.localStorage.getItem('zone-editor-show-help') === 'false') {
+      this.control_help_click(false);
+    }
   }
 
   this.control_reload_click = function() {
@@ -182,6 +188,28 @@ function zone_editor(grid_id, error_id, controls_id) {
 
   this.control_discard_click = function() {
     console.log('discard');
+    // this.do_dump();
+
+    var to_remove=[];
+    var to_update=[];
+    this.api.forEachNode(function(node) {
+      switch (node.data.state) {
+        case "to-add":
+          to_remove.push({id: node.id});
+          break;
+        case "to-delete":
+          to_update.push({...node.data, "state": "vanilla"});
+          break;
+        case "vanilla":
+          break;
+        default:
+          this.serious_error();
+      }
+    });
+    this.api.applyTransaction({remove: to_remove, update: to_update});
+    // this.api.applyTransaction({update: to_update});
+    // this.api.applyTransaction({remove: to_remove});
+    this.api.redrawRows();
   }
 
   this.control_apply_click = function() {
@@ -208,13 +236,45 @@ function zone_editor(grid_id, error_id, controls_id) {
     console.log('script');
   }
 
+  this.control_help_click = function(is_shown) {
+    console.log('help');
+    var show;
+    var localstore_show = window.localStorage.getItem('zone-editor-show-help');
+    if (localstore_show === 'true') {
+      localstore_show = true;
+    } else if (localstore_show === 'false') {
+      localstore_show = false;
+    } else {
+      localstore_show = undefined;
+    }
+    if (is_shown === true) {
+      show = true;
+    } else if (is_shown === false) {
+      show = false;
+    } else if (localstore_show === false) {
+      show = true;
+    } else {
+      show = false;
+    }
+    var node = this.control_buttons["help"];
+    if (show) {
+      node.classList.remove('zone-editor-button-pressed');
+      this.help_node.classList.remove('zone-editor-hide-help');
+    } else {
+      node.classList.add('zone-editor-button-pressed');
+      this.help_node.classList.add('zone-editor-hide-help');
+    }
+    window.localStorage.setItem('zone-editor-show-help', show);
+  }
+
   this.main_controls = {
     "reload": this.control_reload_click,
     "discard": this.control_discard_click,
     "apply": this.control_apply_click,
     "changes_only": this.control_changes_only_click,
     "new_record": this.control_new_record_click,
-    "script": this.control_script_click
+    "script": this.control_script_click,
+    "help": this.control_help_click
   }
 
   this.grid_options = {
@@ -620,4 +680,4 @@ function zone_editor(grid_id, error_id, controls_id) {
   this.init_main_controls();
 }
 
-var zone_editor_obj = new zone_editor('zone_editor_grid', 'zone_editor_error', 'zone_editor_controls');
+var zone_editor_obj = new zone_editor('zone_editor_grid', 'zone_editor_error', 'zone_editor_controls', 'zone_editor_help');

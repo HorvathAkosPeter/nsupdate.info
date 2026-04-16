@@ -114,6 +114,7 @@
 .zone-editor-row-to-add .zone-editor-btn-edit,
 .zone-editor-row-vanilla .zone-editor-btn-cancel,
 .zone-editor-row-to-delete .zone-editor-btn-delete,
+.zone-editor-row-to-delete .zone-editor-btn-edit,
 .zone-editor-row-to-add .zone-editor-btn-delete {
   display: none;
 }
@@ -139,4 +140,8 @@
   /* border-color: var(--bs-btn-color); */
   background-color: var(--bs-btn-color);
   color: var(--bs-btn-bg);
+}
+
+.zone-editor-hide-help {
+  display: none;
 }
