@@ -216,7 +216,7 @@ def ends_with_dot(name):
         return name
 
 
-def make_nameserver(ip, port, protocol):
+def make_nameserver(protocol, ip, port):
     if protocol == "udp":
         return UdpNameServer(ip, port)
     elif protocol == "tcp":
@@ -493,8 +493,8 @@ def get_ns_info(fqdn):
     logger.debug("get_ns_info: domain: " + str(model_to_dict(d)))
     algorithm = getattr(dns.tsig, d.nameserver_update_algorithm)
     logger.debug("get_ns_info: algorithm: " + str(algorithm))
-    ns1 = make_nameserver(d.nameserver_ip, d.nameserver_port, d.nameserver_protocol)
-    ns2 = make_nameserver(d.nameserver2_ip, d.nameserver2_port, d.nameserver2_protocol)
+    ns1 = make_nameserver(d.nameserver_protocol, d.nameserver_ip, d.nameserver_port)
+    ns2 = make_nameserver(d.nameserver2_protocol, d.nameserver2_ip, d.nameserver2_port)
     return (ns1, ns2, fqdn.domain, domain, fqdn.host, d.nameserver_update_key_name, d.nameserver_update_secret, algorithm)
 
 
@@ -526,7 +526,7 @@ def update_ns(fqdn, rdtype='A', ipaddr=None, action='upd', ttl=60):
         msg = "Exception when building keyring for %s: [%s]" % (keyname, str(e))
         logger.error(msg)
         raise DnsUpdateError(msg)
-    upd = dns.update.Update(origin, keyring=keyring, keyalgorithm=algo)
+    upd = dns.update.UpdateMessage(origin, keyring=keyring, keyalgorithm=algo)
     if action == 'add':
         assert ipaddr is not None
         upd.add(name, ttl, rdtype, ipaddr)
@@ -566,10 +566,69 @@ def update_ns(fqdn, rdtype='A', ipaddr=None, action='upd', ttl=60):
         dns_update_error(domain, e, str(e))
 
 
+def update_zone(zone_name, changes):
+    """
+    update the master server
+
+    :param the zone name to be updated, as it exists in the db
+    :param adds: list of RRs to be added, as an array of dictionaries like {"name":, "class":, "type":, "ttl":, "data:"}
+    :param deletes: list of RR to be deleted, in the same format. Note, here we do not replace, only delete and add.
+    :return: nothing means success
+    :raises: DnsUpdateError, Timeout
+    """
+    nameserver, nameserver2, origin, domain, name, keyname, key, algo = get_ns_info(zone_name)
+    logger.debug("update_key: (%s,%s,%s)" % (keyname, key, algo))
+    try:
+        keyring = dns.tsigkeyring.from_text({keyname: key})
+    except (UnicodeError, binascii.Error) as e:
+        msg = "Exception when building keyring for %s: [%s]" % (keyname, str(e))
+        logger.error(msg)
+        raise DnsUpdateError(msg)
+    upd = dns.update.UpdateMessage(origin, keyring=keyring, keyalgorithm=algo)
+    for change in changes:
+        rr_name = dns.name.from_unicode(change["name"])
+        rr_class = dns.rdataclass.from_text(change["class"])
+        rr_type = dns.rdatatype.from_text(change["type"])
+        rr_ttl = dns.ttl.from_text(change["ttl"])
+        rr_data = change["data"]
+        if change["state"] == "to-add":
+            upd.add(rr_name, rr_ttl, rr_class, rr_type, rr_data)
+        elif change["state"] == "to-delete":
+            upd.delete(rr_name, rr_ttl, rr_class, rr_type, rr_data)
+        else:
+            raise DnsUpdateError("internal error")
+    dns_update_error = False
+    try:
+        # response = dns.query.tcp(upd, nameserver, timeout=UPDATE_TIMEOUT)
+        response = nameserver.query(upd, timeout=UPDATE_TIMEOUT)
+        rcode = response.rcode()
+        if rcode != dns.rcode.NOERROR:
+            rcode_text = dns.rcode.to_text(rcode)
+            logger.warning("DNS error [%s] performing %s for name %s and origin %s with rdtype %s and ipaddr %s" % (
+                           rcode_text, action, name, origin, rdtype, ipaddr))
+            raise DnsUpdateError(rcode_text)
+        return response
+    except OSError as e:  # was: socket.error (deprecated)
+        dns_update_error(domain, e, f"OSError [{e}] - zone: {origin}")
+    except EOFError as e:
+        dns_update_error(domain, e, f"EOFError [{e}] - zone: {origin}")
+    except dns.exception.Timeout as e:
+        dns_update_error(domain, e, f"timeout when performing {action} for name {name} and origin {origin} with rdtype {rdtype} and ipaddr {ipaddr}")
+    except dns.tsig.PeerBadSignature as e:
+        dns_update_error(domain, e, f"PeerBadSignature - shared secret mismatch? zone: {origin}")
+    except dns.tsig.PeerBadKey as e:
+        dns_update_error(domain, e, f"PeerBadKey - shared secret mismatch? zone: {origin}")
+    except dns.tsig.PeerBadTime as e:
+        dns_update_error(domain, e, f"PeerBadTime - DNS server did not like the time we sent. zone: {origin}")
+    except dns.message.UnknownTSIGKey as e:
+        dns_update_error(domain, e, f"UnknownTSIGKey [{e}] - zone: {origin}")
+    except dns.exception.DNSException as e:
+        dns_update_error(domain, e, str(e))
+
 def download_zone(domain):
     logger.warning("download_zone, protocol: " + str(domain.nameserver_protocol))
     if domain.nameserver_protocol != "tcp":
-        raise DnsUpdateError(_("AXFR/IXFR protocol can work exclusively on TCP-based DNS servers"))
+        raise DnsUpdateError(_("AXFR/IXFR is supported only on TCP-based DNS servers, yet"))
 
     # def axfr_with_tsig(server, zone_name, key_name, key_secret_b64, key_alg=TSIG_ALGORITHM):
     # Build a keyring (name -> base64 secret)

@@ -18,10 +18,12 @@
 ---
 For the zone editor PR:
 DONE error msg from javascript, tuning
-- "@.domain.name", ugly
-- show domain name in title
 - apply button, serverside
 - reload button finish
+- "@.domain.name", ugly
+- show domain name in title
 - script button finish
 - zone editor should follow zone permissions
 - ansible deployment
+- make AXFR and dyndns possible on the largest possible subset of (udp, tcp, dot, doh, doq)
+- separate dnspython helper code from dnstools

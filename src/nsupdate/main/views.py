@@ -26,6 +26,7 @@ from django.http import Http404
 from django import template
 from django.utils.timezone import now
 from django.shortcuts import get_object_or_404
+from django.middleware.csrf import get_token
 
 from . import dnstools
 from .iptools import normalize_ip
@@ -534,7 +535,7 @@ class ZoneEditorHtmlView(TemplateView):
 class ZoneEditorJsonView(View):
     action = None
 
-    def get_zone(self, zoneId):
+    def get_zone(self, request, zoneId):
         domain = get_object_or_404(Domain, pk=zoneId)
         logger.warning("get_zone: %s" % zoneId)
         records = []
@@ -543,14 +544,15 @@ class ZoneEditorJsonView(View):
           records = dnstools.download_zone(domain)
         except Exception as e:
           error = str(e)
-        return { "records": records, "error": error }
+        csrftoken = get_token(request);
+        return { "records": records, "error": error, "zone_name": domain.name, "csrftoken": csrftoken }
 
     def get_json(self, request, *args, **kwargs):
-        response = self.get_zone(kwargs.get("pk"))
+        response = self.get_zone(request, kwargs.get("pk"))
         return JsonResponse(response, safe=False)
 
     def get_jsonp(self, request, *args, **kwargs):
-        zone_data = self.get_zone(kwargs.get("pk"))
+        zone_data = self.get_zone(request, kwargs.get("pk"))
         body = f'zone_editor_obj.new_data_cb({json.dumps(zone_data)});'
         return HttpResponse(body, content_type='application/javascript; charset=utf-8')
 
@@ -561,6 +563,15 @@ class ZoneEditorJsonView(View):
             return self.get_jsonp(request, *args, **kwargs)
         else:
             raise Http404
+
+    def post(self, request, *args, **kwargs):
+        domain = get_object_or_404(Domain, pk=kwargs.get("pk"))
+        try:
+            changes = request.body.decode('utf-8')
+            dnstools.update_zone(domain.name, changes)
+        except Exception as e:
+            return HttpResponse(status = 500, reason = str(e))
+        return JsonResponse([], safe=False)
 
 
 class UpdaterHostConfigOverviewView(CreateView):
