@@ -567,9 +567,10 @@ class ZoneEditorJsonView(View):
     def post(self, request, *args, **kwargs):
         domain = get_object_or_404(Domain, pk=kwargs.get("pk"))
         try:
-            changes = request.body.decode('utf-8')
+            changes = json.loads(request.body.decode('utf-8'))
             dnstools.update_zone(domain.name, changes)
         except Exception as e:
+            logger.exception("zone update controller error")
             return HttpResponse(status = 500, reason = str(e))
         return JsonResponse([], safe=False)
 

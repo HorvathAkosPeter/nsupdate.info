@@ -576,7 +576,7 @@ def update_zone(zone_name, changes):
     :return: nothing means success
     :raises: DnsUpdateError, Timeout
     """
-    nameserver, nameserver2, origin, domain, name, keyname, key, algo = get_ns_info(zone_name)
+    nameserver, nameserver2, origin, domain, name, keyname, key, algo = get_ns_info(FQDN(host=None, domain=zone_name))
     logger.debug("update_key: (%s,%s,%s)" % (keyname, key, algo))
     try:
         keyring = dns.tsigkeyring.from_text({keyname: key})
@@ -586,17 +586,25 @@ def update_zone(zone_name, changes):
         raise DnsUpdateError(msg)
     upd = dns.update.UpdateMessage(origin, keyring=keyring, keyalgorithm=algo)
     for change in changes:
+        logger.error("change")
+        logger.error(change)
         rr_name = dns.name.from_unicode(change["name"])
         rr_class = dns.rdataclass.from_text(change["class"])
         rr_type = dns.rdatatype.from_text(change["type"])
-        rr_ttl = dns.ttl.from_text(change["ttl"])
+        rr_ttl = dns.ttl.from_text(str(change["ttl"]))
         rr_data = change["data"]
+        zone_rdclass_bkp = False
+        if change["class"] != "IN":
+            zone_rdclass_bkp = upd.zone_rdclass
+            upd.zone_rdclass = dns.rdataclass.RdataClass.make(change["class"])
         if change["state"] == "to-add":
-            upd.add(rr_name, rr_ttl, rr_class, rr_type, rr_data)
+            upd.add(change["name"], change["ttl"], change["type"], change["data"])
         elif change["state"] == "to-delete":
-            upd.delete(rr_name, rr_ttl, rr_class, rr_type, rr_data)
+            upd.delete(change["name"], change["type"], change["data"])
         else:
             raise DnsUpdateError("internal error")
+        if zone_rdclass_bkp:
+            upd.zone_rdclass = zone_rdclass_bkp
     dns_update_error = False
     try:
         # response = dns.query.tcp(upd, nameserver, timeout=UPDATE_TIMEOUT)
@@ -604,8 +612,7 @@ def update_zone(zone_name, changes):
         rcode = response.rcode()
         if rcode != dns.rcode.NOERROR:
             rcode_text = dns.rcode.to_text(rcode)
-            logger.warning("DNS error [%s] performing %s for name %s and origin %s with rdtype %s and ipaddr %s" % (
-                           rcode_text, action, name, origin, rdtype, ipaddr))
+            logger.warning("DNS error [%s] for name %s and origin %s" % (rcode_text, name, origin))
             raise DnsUpdateError(rcode_text)
         return response
     except OSError as e:  # was: socket.error (deprecated)
