@@ -295,7 +295,6 @@ function zone_editor(grid_id, error_id, controls_id, help_id) {
   this.delete_row = function (row_id) {
     var row_node = this.api.getRowNode(row_id);
     var to_delete = row_node.data;
-    // this.api.applyTransaction({remove: [to_delete]});
     this.api.applyTransaction({ remove: [{ id: row_id }] });
   };
 
@@ -404,8 +403,6 @@ function zone_editor(grid_id, error_id, controls_id, help_id) {
       }
     });
     this.api.applyTransaction({ remove: to_remove, update: to_update });
-    // this.api.applyTransaction({update: to_update});
-    // this.api.applyTransaction({remove: to_remove});
     this.api.redrawRows();
   };
 
@@ -628,6 +625,7 @@ function zone_editor(grid_id, error_id, controls_id, help_id) {
       return this_.get_row_id(row.data);
     },
     getRowClass: function (params) {
+      // console.error(params.data);
       row_class = "zone_editor_row_" + params.data.state.replaceAll("-", "_");
       /*
                   if (is_nonemptystring(params.data.error)) {
@@ -813,13 +811,76 @@ function zone_editor(grid_id, error_id, controls_id, help_id) {
   // new data arrival, merge
 
   this.new_data_cb = function (data) {
+    var new_data_map = {};
+    var to_add = [];
+    var to_update = [];
+    var to_remove = [];
+
     data.records.forEach((row) => {
       row["state"] = "vanilla";
       row["controls"] = "";
       // row["error"] = "";
       row["natural_sort"] = "";
     });
-    this.grid_options.rowData = data["records"];
+
+    if (!this.inited) {
+      this.grid_options.rowData = data["records"];
+      agGrid.createGrid(this.grid_node, this.grid_options);
+    } else {
+      // this.api.refreshCells();
+      data.records.forEach((row) => {
+        var id = row_hash(row);
+        new_data_map[id] = row;
+
+        orig_node = this_.api.getRowNode(id);
+        if (orig_node) {
+          // row exists both in current and new data, merge them
+            // to-delete: update, remains to-delete
+            // vanilla: update, remains vanilla
+            // to-add: delete
+          switch (orig_node.data["state"]) {
+            case "vanilla":
+            case "to-delete":
+              var update = {...orig_node.data, "name": row["name"], "class": row["class"], "type": row["type"], "ttl": row["ttl"], "data": row["data"]};
+              to_update.push(update);
+              break;
+            case "to-add":
+              to_remove.push({id: id});
+              break;
+            default:
+              this_.serious_error();
+          }
+        } else {
+          // row exists in new data, but not in the current data
+            // just add it
+          to_add.push(row);
+        }
+      });
+
+      this.api.forEachNode(function(node) {
+        if (!new_data_map.hasOwnProperty(node.id)) {
+          // row exists in current data but not in new data
+            // to-delete: delete it
+            // vanilla: delete it
+            // to-add: remains to-add, now change
+          switch (node.data["state"]) {
+            case "vanilla":
+            case "to-delete":
+              to_remove.push({id: node.id});
+              break;
+            case "to-add":
+              break;
+            default:
+              this_.serious_error();
+          }
+        }
+      });
+
+      this.api.applyTransaction({add: to_add, update: to_update, remove: to_remove});
+      this.api.redrawRows();
+
+    }
+
     this.set_error(data["error"]);
 
     if ("csrftoken" in data) {
@@ -835,12 +896,6 @@ function zone_editor(grid_id, error_id, controls_id, help_id) {
         this_.ddns_param[name] = data[name];
       }
     });
-
-    if (this.inited) {
-      this.api.refreshCells();
-    } else {
-      agGrid.createGrid(this.grid_node, this.grid_options);
-    }
 
     this.stop_reload_animation();
   };
