@@ -1,7 +1,7 @@
-- implement a zone editor
+DONE implement a zone editor
 - connection test as a separate button on the domain editor
 - key generation should be a separate functionality
-- remove_nameserver2 as no one is using it
+- remove nameserver2 as no one is using it
 - dnstools.py should be an OO thing, reading the db only once
 - nameservers should be separate, induvidually manageable entities
 - keys should be separate, induvidually manageable entities
@@ -19,9 +19,9 @@
 For the zone editor PR:
 DONE error msg from javascript, tuning
 DONE show domain name in title
-- apply button, serverside
-- reload button finish
-- "@.domain.name", ugly
+DONE apply button, serverside
+DONE reload button finish
+- "@.domain.name", ugly and bad, bug
 - script button finish
 - zone editor should follow zone permissions
 - ansible deployment
@@ -29,4 +29,4 @@ DONE show domain name in title
 ---
 Later:
 - make AXFR and dyndns possible on the largest possible subset of (udp, tcp, dot, doh, doq)
-- separate dnspython helper code from dnstools
+- separate dnspython helper code from dnstools.py

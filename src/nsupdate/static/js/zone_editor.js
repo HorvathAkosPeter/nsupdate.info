@@ -435,17 +435,17 @@ function zone_editor(grid_id, error_id, controls_id, help_id) {
       },
       body: JSON.stringify(changes),
     })
-      .then(function (response) {
-        this_.stop_apply_animation();
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status} ${response.statusText}`);
-        }
-        this_.set_notice('Server reports success. Suggestion: click "reload".');
-      })
-      .catch(function (error) {
-        this_.stop_apply_animation();
-        this_.set_error("DNS update error: " + error.message);
-      });
+    .then(function (response) {
+      this_.stop_apply_animation();
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status} ${response.statusText}`);
+      }
+      this_.set_notice('Server reports success. Suggestion: click "reload".');
+    })
+    .catch(function (error) {
+      this_.stop_apply_animation();
+      this_.set_error("DNS update error: " + error.message);
+    });
   };
 
   this.main_controls_changes_only = function () {
@@ -643,7 +643,6 @@ function zone_editor(grid_id, error_id, controls_id, help_id) {
   };
 
   // grid event handlers
-
   this.on_column_resized = function (params) {
     this.recalc_width(params);
   };
@@ -809,7 +808,6 @@ function zone_editor(grid_id, error_id, controls_id, help_id) {
   };
 
   // new data arrival, merge
-
   this.new_data_cb = function (data) {
     var new_data_map = {};
     var to_add = [];
@@ -862,7 +860,7 @@ function zone_editor(grid_id, error_id, controls_id, help_id) {
           // row exists in current data but not in new data
             // to-delete: delete it
             // vanilla: delete it
-            // to-add: remains to-add, now change
+            // to-add: remains to-add, no change
           switch (node.data["state"]) {
             case "vanilla":
             case "to-delete":
@@ -878,7 +876,6 @@ function zone_editor(grid_id, error_id, controls_id, help_id) {
 
       this.api.applyTransaction({add: to_add, update: to_update, remove: to_remove});
       this.api.redrawRows();
-
     }
 
     this.set_error(data["error"]);
@@ -901,7 +898,6 @@ function zone_editor(grid_id, error_id, controls_id, help_id) {
   };
 
   // main object initialization
-
   this.main_controls_init();
   this.csrftoken = get_cookie("csrftoken");
 }
