@@ -835,15 +835,28 @@ function zone_editor(grid_id, error_id, controls_id, help_id) {
           // row exists both in current and new data, merge them
             // to-delete: update, remains to-delete
             // vanilla: update, remains vanilla
-            // to-add: delete
+            // to-add: update to vanilla
           switch (orig_node.data["state"]) {
             case "vanilla":
             case "to-delete":
-              var update = {...orig_node.data, "name": row["name"], "class": row["class"], "type": row["type"], "ttl": row["ttl"], "data": row["data"]};
+              var update = {...orig_node.data,
+                            "name": row["name"],
+                            "class": row["class"],
+                            "type": row["type"],
+                            "ttl": row["ttl"],
+                            "data": row["data"]};
               to_update.push(update);
               break;
             case "to-add":
-              to_remove.push({id: id});
+              var update = {...orig_node.data,
+                            "name": row["name"],
+                            "class": row["class"],
+                            "type": row["type"],
+                            "ttl": row["ttl"],
+                            "data": row["data"],
+                            "state": "vanilla"};
+              to_update.push(update);
+              // to_remove.push({id: id});
               break;
             default:
               this_.serious_error();
