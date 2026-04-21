@@ -70,7 +70,7 @@ with your hosts or domains.
 
 For your own safety, use https and a sane password.
 
-Be careful: in case you lose your login username/password and you also can't receive mail sent to the E-Mail address
+Be careful: in case you lose your login username/password and you also can't receive mail sent to the email address
 you gave when registering, you might not be able to regain access to your account / your hosts (neither automatically
 nor with help from service admin) as you likely can't prove that they are really yours / you are permitted to
 control them.
@@ -102,7 +102,7 @@ IP v4 and v6 addresses work completely independently of each other, you need to 
 both. If you want to be specific about which IP address you update, use our IPv4-only or IPv6-only host to make sure
 it is the v4 (or v6) address.
 
-After configuring a new update client, please keep an eye one the Faults column on the overview page.
+After configuring a new update client, please keep an eye on the Faults column on the overview page.
 It shows 2 values: C: <client faults> S: <server faults>
 
 An increasing number of client faults usually means you (or the software you use) are doing something wrong
@@ -111,7 +111,7 @@ An increasing number of client faults usually means you (or the software you use
 An increasing number of server faults means there is either something wrong with the nameserver or the
 connection to it or it is rejecting the updates for your hostname.
 
-At the bottom of the host view, we also show the last result messages for authentication (of course only if at can be
+At the bottom of the host view, we also show the last result messages for authentication (of course only if it can be
 related to that host), for the client result, for the server result. Check if everything looks ok there.
 
 Adding Domains
@@ -149,12 +149,16 @@ Related Hosts
 In short: update a whole bunch of DNS records for other hosts on same LAN.
 
 This is a feature most interesting for IPv6 users, but the same mechanism also
-works for IPv4 (it is just rather rare that you get an IPv4 network and you need
-dynamic DNS). So, let's assume IPv6 from now on.
+works for IPv4.
 
-On your main host entry you can configure the IPv6 prefix length (think of netmask).
-Usually you'll get a /64 network from your ISP, so keep the default of "64" there
-and only change it if you know better.
+On your main host entry you can configure the "netmasks" for IPv4 and IPv6:
+
+For IPv6, if you get a /59 IPv6 network from your ISP for your LAN devices,
+you enter 59 in the "Netmask ipv6" field.
+
+For IPv4, if you get a single IPv4 address from your ISP (the usual case for home
+users), the IPv4 netmask on the main host should be 32. If you get multiple public
+IPv4 addresses, e.g. a /29 network, put 29 in the "Netmask ipv4" field.
 
 The specific prefix you get from your ISP might be static or may change now and
 then (for better privacy or other reasons - and in that case, you really need
@@ -162,48 +166,43 @@ the related hosts feature).
 
 You need to configure a dyndns2 compatible updater on some device on your LAN
 and the updater needs to send this device's global IPv6 address to the service.
+Sending only the IPv6 prefix will also work, but then the main host will have
+a rather useless AAAA record just containing the prefix.
 
 So far, nothing special, upon receiving an update the service will then update
 DNS like this:
 
 ::
 
-    mainhost.nsupdate.info -> pppp:pppp:pppp:pppp:iiii:iiii:iiii:iiii
-
-p are prefix parts, i are host/interface parts of the address.
+    mainhost.nsupdate.info A    <ipv4 address like received in the update request>
+    mainhost.nsupdate.info AAAA <ipv6 address like received in the update request>
 
 Additionally, the service will go over all related hosts entries for mainhost
 and does more DNS updates based on this computation:
 
 ::
 
-    relatedhost.mainhost.nsupdate.info -> pppp:pppp:pppp:pppp:rrrr:rrrr:rrrr:rrrr
+    relatedhost.mainhost.nsupdate.info A    <ipv4 & netmask4 + interface_id4>
+    relatedhost.mainhost.nsupdate.info AAAA <ipv6 & netmask6 + interface_id6>
 
 You also see it prepends the related host's name to your mainhost's FQDN.
 
-For the related hosts's address, p is same prefix as above (the host is on same
-network), but r comes from what you entered as interface ID into the related
-host record.
+The related hosts's address is based on the received address, masked by the netmask
+plus the interface id of the related host added.
 
-The interface ID must be a proper notation.
+The interface ID must be in the proper format:
 For IPv6 an interface ID might look like `::rrrr:rrrr:rrrr:rrrr`,
 for IPv4 an interface ID might look like `r.r.r.r`.
 
 If you leave the interface ID field empty, that means not to create such a DNS record.
 
-In other words:
-
-::
-
-    related_fqdn = relatedhost_name.mainhost_fqdn
-    related_address = mainhost_address_prefix + interface_id
-
 
 Note:
 
 * enter the static interface ID (usually you can get it from the rear 4 words
-  of the address that looks like FE80::rrrr:rrrr:rrrr:rrrr). The r part is
-  usually derived from your hardware MAC address and does not change.
+  of the address that looks like FE80::rrrr:rrrr:rrrr:rrrr, where each `r`
+  is a hexadecimal digit 0-9 or a-f). This part is usually derived from your
+  hardware MAC address and does not change.
 * make sure your device has a IPv6 address with global scope, some prefix that
   starts with a "2" and precisely that rrrr:rrrr:rrrr:rrrr value
 * you only need a dyndns2 updater on one device (called mainhost in this
@@ -216,7 +215,8 @@ Note:
   run the updater on that device and make sure the request originates from
   the IPv6 address you want in DNS.
 * if you want the related host to point to the same IPv4 address as the main
-  host (which is often the router), use 0 as the interface ID.
+  host (which is often the router), use 0.0.0.0 as the interface ID.
+* if you put nothing as the IPv4 interface ID, it won't get an A record.
 
 
 Other Services Updaters
@@ -254,9 +254,9 @@ One typical scenario where this is useful:
 
 How to optimize this scenario:
 
-* go to the "yourname-adhoc" entry and use "Show Configuration"
-* copy and paste the URL shown in the "Browser" tab of the configuration help
-  panel, under headline "Browser-based update client"
+* go to the **yourname-adhoc** entry and use **Show Configuration**
+* copy and paste the URL shown in the **Browser** tab of the configuration help
+  panel, under headline **Browser-based update client**
 * optional: try it yourself in your browser
 * give this URL to your client (E-Mail, Chat, ...), tell the client to open it
   with a browser and keep that page open in the browser until you're finished.
@@ -277,7 +277,7 @@ Note:
   - when clients visits that URL, it will ask for username and password:
 
     - User name: yourname-adhoc.basedomain
-    - Password: secret
+    - Password: <your-update-secret>
   - let the client check "Last update response". Should be "good" (or "nochg")
     plus same IP as shown below "My IP". If it shows something else, then there
     likely was a typo in the user name or password.
