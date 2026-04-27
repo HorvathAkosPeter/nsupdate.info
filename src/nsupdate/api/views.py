@@ -431,7 +431,7 @@ def _update_or_delete(host, ipaddr, secure=False, logger=None, _delete=False):
     :param _delete: True for delete, False for update
     :return: dyndns2 response string
     """
-    mode = ('update', 'delete')[_delete]
+    mode = ('update', 'delete')[_delete]  # only use this for logging
     # we are doing abuse / available checks rather late, so the client might
     # get more specific responses (like 'badagent' or 'notfqdn') by earlier
     # checks. it also avoids some code duplication if done here:
@@ -460,10 +460,26 @@ def _update_or_delete(host, ipaddr, secure=False, logger=None, _delete=False):
         host.register_client_result(msg, fault=True)
         return 'dnserr'  # there should be a better response code for this
 
-    if not _delete and kind == 'ipv6' and IPAddress(ipaddr) == IPNetwork("%s/%d" % (ipaddr, host.netmask_ipv6)).network:
-        _delete = True
+    # If we receive an update request with an address that has only the network prefix,
+    # but the interface id is all-zero, we will NOT update DNS with a useless A or AAAA record,
+    # but rather delete any A or AAAA record we already might have, see issue #648.
+    if not _delete:
+        if kind == 'ipv4':
+            netmask = host.netmask_ipv4
+            single_ip = netmask == 32  # the usual case for home routers
+        elif kind == 'ipv6':
+            netmask = host.netmask_ipv6
+            single_ip = netmask == 128  # rather theoretical case, but who knows...
+        else:
+            raise ValueError('unknown ip address kind: %s' % kind)
+        # we do not want to update A/AAAA records with network addresses:
+        is_network = not single_ip and IPNetwork("%s/%d" % (ipaddr, netmask)).network == IPAddress(ipaddr)
+        if is_network:
+            logger.info('%s - received %s for host %s, but address has only network prefix, deleting instead' % (fqdn, mode, ipaddr, ))
+    else:
+        is_network = False
 
-    if mode == 'update' and IPAddress(ipaddr) in settings.BAD_IPS_HOST:
+    if not _delete and IPAddress(ipaddr) in settings.BAD_IPS_HOST:
         msg = '%s - received %s to blacklisted ip address: %r' % (fqdn, mode, ipaddr)
         logger.warning(msg)
         host.abuse = True
@@ -472,7 +488,7 @@ def _update_or_delete(host, ipaddr, secure=False, logger=None, _delete=False):
         return 'abuse'
     host.poke(kind, secure)
     try:
-        if _delete:
+        if _delete or is_network:
             delete(fqdn, rdtype)
         else:
             update(fqdn, ipaddr)
