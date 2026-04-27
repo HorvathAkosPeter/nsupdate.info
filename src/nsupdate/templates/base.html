@@ -1,6 +1,6 @@
 {% load static i18n django_bootstrap5 %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="dark">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,15 +11,15 @@
 
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
         <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.2.0/css/all.min.css" rel="stylesheet" integrity="sha384-EXatlQyrOJgDaM9/a74ArMzy7/2bTMSrZj8ID1IPeVmc3GncfCugefCFWSLj8JL/" crossorigin="anonymous">
+
         <link href="{% static 'css/nsupdate.css' %}" rel="stylesheet">
         <link rel="icon" type="image/svg+xml" sizes="any" href="{% static "img/favicon.svg" %}">
         <link rel="icon" type="image/png" href="{% static "img/favicon_32.png" %}" sizes="32x32">
         <link rel="icon" type="image/png" href="{% static "img/favicon_96.png" %}" sizes="96x96">
-        <!-- note: keep jQuery, Popper and bootstrap js here,
+        <!-- note: keep jQuery and bootstrap js here,
                    stuff in the include / block right below might depend on it!
         -->
         <script src="https://cdn.jsdelivr.net/npm/jquery@4.0.0/dist/jquery.min.js" integrity="sha384-fgGyf7Mo7DURSOMnOy7ed+dkq5Job205Gnzu6QIg0BOHKaqt4D76Dt8VlDCzcMHV" crossorigin="anonymous"></script>
-        <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js" integrity="sha384-9/reFTGAW83EW2RDu2S0VKaIzap3H66lZH81PoYlFhbGU+6BZp6G7niu735Sk7lN" crossorigin="anonymous"></script>
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
         {% include "includes/base_head.html" %}
         {% block html_head %}{% endblock %}
@@ -61,7 +61,7 @@
                         {% else %}
                             <li class="nav-item dropdown">
                                 <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown" id="navbarUserDropdown" role="button" aria-haspopup="true" aria-expanded="false"><i class="fa fa-user fa-fw"></i> {{ request.user.username }}</a>
-                            <div class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarUserDropdown">
+                                <div class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarUserDropdown">
                                     <a class="dropdown-item" href="{% url 'account_profile' %}"><i class="fa fa-cogs fa-fw"></i> {% trans 'Profile' %}</a>
                                     <a class="dropdown-item" href="{% url 'account_settings' %}"><i class="fa fa-key fa-fw"></i> {% trans 'Password change' %}</a>
                                     {% if request.user.is_staff %}
@@ -69,25 +69,28 @@
                                         <a class="dropdown-item" href="{% url 'admin:index' %}"><i class="fa fa-wrench fa-fw"></i> {% trans 'Admin interface' %}</a>
                                     {% endif %}
                                     <div class="dropdown-divider"></div>
-                                    <a class="dropdown-item" href="{% url 'logout' %}"><i class="fa fa-sign-out-alt fa-fw"></i> {% trans 'Log out' %}</a>
+                                    <form id="logout-form" action="{% url 'logout' %}" method="post" style="display:none">
+                                        {% csrf_token %}
+                                    </form>
+                                    <a class="dropdown-item" href="#" onclick="document.getElementById('logout-form').submit();return false;"><i class="fa fa-sign-out-alt fa-fw"></i> {% trans 'Log out' %}</a>
                                 </div>
                             </li>
                         {% endif %}
                         <li class="nav-item dropdown">
                             <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown" id="navbarLangDropdown" role="button" aria-haspopup="true" aria-expanded="false"><i class="fa fa-language fa-fw"></i> {{ LANGUAGE_CODE }}</a>
                             <div class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarLangDropdown">
-                            {% get_language_info_list for LANGUAGES as langs %}
-                            {% for lang in langs %}
-                                {% if lang.code != LANGUAGE_CODE %}
-                                    <form id="setLang{{ forloop.counter }}" action="{% url 'set_language' %}" method="post" style="display:none">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="language" value="{{ lang.code }}" />
-                                    </form>
-                                    <a class="dropdown-item" href="#" onclick="document.getElementById('setLang{{ forloop.counter }}').submit();return false;">
-                                        {{ lang.name_local|capfirst }} ({{ lang.name }}) [{{ lang.code }}]
-                                    </a>
-                                {% endif %}
-                            {% endfor %}
+                                {% get_language_info_list for LANGUAGES as langs %}
+                                {% for lang in langs %}
+                                    {% if lang.code != LANGUAGE_CODE %}
+                                        <form id="setLang{{ forloop.counter }}" action="{% url 'set_language' %}" method="post" style="display:none">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="language" value="{{ lang.code }}" />
+                                        </form>
+                                        <a class="dropdown-item" href="#" onclick="document.getElementById('setLang{{ forloop.counter }}').submit();return false;">
+                                            {{ lang.name_local|capfirst }} ({{ lang.name }}) [{{ lang.code }}]
+                                        </a>
+                                    {% endif %}
+                                {% endfor %}
                             </div>
                         </li>
                     </ul>
@@ -110,7 +113,7 @@
                                 {% if COOKIE_SECURE %}
                                     {% blocktrans trimmed %}
                                     At least some of the required cookies will only work on the secure https site,
-                                    expect malfunctioning on the http site.
+                                    expect malfunctions on the http site.
                                     {% endblocktrans %}
                                 {% endif %}
                                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
@@ -140,7 +143,7 @@
 
         <div class="footer">
             <div class="container">
-            {% include "includes/base_footer.html" %}
+                {% include "includes/base_footer.html" %}
             </div>
         </div>
         <div id="ip_detection" style="display: none">
@@ -167,11 +170,11 @@
                 <script type="text/javascript">
                 $(document).ready(function() {
                     {% if not request.session.ipv4 %}
-                        $('#ip_detection').add(
+                        $('#ip_detection').append(
                             '<img src="//{{ WWW_IPV4_HOST }}/detectip/{{ detectip_token }}/" >');
                     {% endif %}
                     {% if not request.session.ipv6 %}
-                        $('#ip_detection').add(
+                        $('#ip_detection').append(
                             '<img src="//{{ WWW_IPV6_HOST }}/detectip/{{ detectip_token }}/" >');
                     {% endif %}
                     function insert_ips() {

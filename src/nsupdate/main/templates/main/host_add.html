@@ -14,14 +14,17 @@
             </div>
         </div>
         <div class="col-md-6">
-            <div class="card card-body p-2 mb-4">
-                <h3>{% trans "Help" %}</h3>
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h3 class="m-0">{% trans "Help" %}</h3>
+                </div>
+                <div class="card-body">
                 <p>{% trans "Here you can add new hosts (like routers, PCs, servers, ...)." %}
                 </p>
                 <p>
                     {% blocktrans trimmed %}
                     You need to be able to configure one of your machines so it sends dyndns2 compatible
-                    updates to us when your IP changes. Routers usually have some builtin software that does
+                    updates to us when your IP changes. Routers usually have some built-in software that does
                     this, but you can also use some software on another system (like a PC or server).
                     {% endblocktrans %}
                 </p>
