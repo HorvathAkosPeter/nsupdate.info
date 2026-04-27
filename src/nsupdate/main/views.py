@@ -3,14 +3,20 @@
 Views for the interactive web user interface.
 """
 
+import socket
+import json
+
 from datetime import timedelta
 
 import dns.name
 
+import logging
+logger = logging.getLogger('')
+
 from django.db.models import Q
 from django.views.generic import View, TemplateView, CreateView, DetailView
 from django.views.generic.edit import UpdateView, DeleteView
-from django.http import HttpResponse, HttpResponseRedirect
+from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import get_user_model
 from django.contrib import messages
@@ -19,6 +25,8 @@ from django.urls import reverse
 from django.http import Http404
 from django import template
 from django.utils.timezone import now
+from django.shortcuts import get_object_or_404
+from django.middleware.csrf import get_token
 
 from . import dnstools
 from .iptools import normalize_ip
@@ -68,7 +76,7 @@ class GenerateNSSecretView(DetailView):
     def get_context_data(self, **kwargs):
         context = super(GenerateNSSecretView, self).get_context_data(**kwargs)
         context['nav_overview'] = True
-        context['shared_secret'] = self.object.generate_ns_secret()
+        context['key_name'], context['shared_secret'] = self.object.generate_ns_secret()
         messages.add_message(self.request, messages.SUCCESS, 'Nameserver shared secret created.')
         return context
 
@@ -192,6 +200,9 @@ class OverviewView(TemplateView):
         context['hosts'] = Host.objects.filter(created_by=self.request.user).select_related("domain")\
             .only("name", "comment", "available", "client_faults", "server_faults", "abuse_blocked", "abuse",
                   "last_update_ipv4", "tls_update_ipv4", "last_update_ipv6", "tls_update_ipv6", "domain__name")
+        # context['your_domains'] = Domain.objects.filter(created_by=self.request.user)
+        # context['public_domains'] = Domain.objects.filter(public=True).exclude(created_by=self.request.user)
+
         context['your_domains'] = Domain.objects.filter(
             created_by=self.request.user).select_related("created_by")\
             .only("name", "public", "available", "comment", "created_by__username")
@@ -511,6 +522,57 @@ class DeleteDomainView(DeleteView):
         context = super(DeleteDomainView, self).get_context_data(**kwargs)
         context['nav_overview'] = True
         return context
+
+
+class ZoneEditorHtmlView(TemplateView):
+    template_name = "main/zone_editor.html"
+
+    def get_context_data(self, **kwargs):
+        context = {"pk": kwargs["pk"]}
+        return context
+
+
+class ZoneEditorJsonView(View):
+    action = None
+
+    def get_zone(self, request, zoneId):
+        domain = get_object_or_404(Domain, pk=zoneId)
+        logger.warning("get_zone: %s" % zoneId)
+        records = []
+        error = False
+        try:
+          records = dnstools.download_zone(domain)
+        except Exception as e:
+          error = str(e)
+        csrftoken = get_token(request);
+        return { "records": records, "error": error, "zone_name": domain.name, "csrftoken": csrftoken }
+
+    def get_json(self, request, *args, **kwargs):
+        response = self.get_zone(request, kwargs.get("pk"))
+        return JsonResponse(response, safe=False)
+
+    def get_jsonp(self, request, *args, **kwargs):
+        zone_data = self.get_zone(request, kwargs.get("pk"))
+        body = f'zone_editor_obj.new_data_cb({json.dumps(zone_data)});'
+        return HttpResponse(body, content_type='application/javascript; charset=utf-8')
+
+    def get(self, request, *args, **kwargs):
+        if self.action == "get_json":
+            return self.get_json(request, *args, **kwargs)
+        elif self.action == "get_jsonp":
+            return self.get_jsonp(request, *args, **kwargs)
+        else:
+            raise Http404
+
+    def post(self, request, *args, **kwargs):
+        domain = get_object_or_404(Domain, pk=kwargs.get("pk"))
+        try:
+            changes = json.loads(request.body.decode('utf-8'))
+            dnstools.update_zone(domain.name, changes)
+        except Exception as e:
+            logger.exception("zone update controller error")
+            return HttpResponse(status = 500, reason = str(e))
+        return JsonResponse([], safe=False)
 
 
 class UpdaterHostConfigOverviewView(CreateView):

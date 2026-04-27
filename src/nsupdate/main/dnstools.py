@@ -22,7 +22,9 @@ from datetime import timedelta
 from collections import namedtuple
 
 import logging
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('')
+
+import traceback
 
 import socket
 import random
@@ -31,14 +33,18 @@ import struct
 import dns.inet
 import dns.message
 import dns.name
+import dns.nameserver
 import dns.resolver
 import dns.query
 import dns.update
 import dns.tsig
 import dns.tsigkeyring
 import dns.exception
+import dns.zone
 
 from django.utils.timezone import now
+from django.forms.models import model_to_dict
+from django.utils.translation import gettext_lazy as _
 
 
 class FQDN(namedtuple('FQDN', ['host', 'domain'])):
@@ -89,6 +95,142 @@ class NameServerNotAvailable(Exception):
     """
 
 
+class UdpNameServer(dns.nameserver.AddressAndPortNameserver):
+    def __init__(self, address: str, port: int = 53):
+        super().__init__(address, port)
+
+    def kind(self):
+        return "udp"
+
+    def query(
+        self,
+        request: dns.message.QueryMessage,
+        timeout: float,
+        source: str | None = None,
+        source_port: int = 0,
+        one_rr_per_rrset: bool = False,
+        ignore_trailing: bool = False,
+        max_size: int | None = None
+    ) -> dns.message.Message:
+        response = dns.query.udp(
+            request,
+            self.address,
+            timeout=timeout,
+            port=self.port,
+            source=source,
+            source_port=source_port,
+            raise_on_truncation=True,
+            one_rr_per_rrset=one_rr_per_rrset,
+            ignore_trailing=ignore_trailing,
+            ignore_errors=True,
+            ignore_unexpected=True,
+        )
+        return response
+
+    async def async_query(
+        self,
+        request: dns.message.QueryMessage,
+        timeout: float,
+        source: str | None = None,
+        source_port: int = 0,
+        backend: dns.asyncbackend.Backend | None = None,
+        one_rr_per_rrset: bool = False,
+        ignore_trailing: bool = False,
+        max_size: int | None = None
+    ) -> dns.message.Message:
+        response = await dns.asyncquery.udp(
+            request,
+            self.address,
+            timeout=timeout,
+            port=self.port,
+            source=source,
+            source_port=source_port,
+            raise_on_truncation=True,
+            backend=backend,
+            one_rr_per_rrset=one_rr_per_rrset,
+            ignore_trailing=ignore_trailing,
+            ignore_errors=True,
+            ignore_unexpected=True,
+        )
+        return response
+
+
+class TcpNameServer(dns.nameserver.AddressAndPortNameserver):
+    def __init__(self, address: str, port: int = 53):
+        super().__init__(address, port)
+
+    def kind(self):
+        return "tcp"
+
+    def query(
+        self,
+        request: dns.message.QueryMessage,
+        timeout: float,
+        source: str | None = None,
+        source_port: int = 0,
+        one_rr_per_rrset: bool = False,
+        ignore_trailing: bool = False,
+        max_size: int | None = None
+    ) -> dns.message.Message:
+        response = dns.query.tcp(
+            request,
+            self.address,
+            timeout=timeout,
+            port=self.port,
+            source=source,
+            source_port=source_port,
+            one_rr_per_rrset=one_rr_per_rrset,
+            ignore_trailing=ignore_trailing,
+        )
+        return response
+
+    async def async_query(
+        self,
+        request: dns.message.QueryMessage,
+        timeout: float,
+        source: str | None,
+        source_port: int,
+        backend: dns.asyncbackend.Backend | None = None,
+        one_rr_per_rrset: bool = False,
+        ignore_trailing: bool = False,
+        max_size: int | None = None
+    ) -> dns.message.Message:
+        response = await dns.asyncquery.tcp(
+            request,
+            self.address,
+            timeout=timeout,
+            port=self.port,
+            source=source,
+            source_port=source_port,
+            backend=backend,
+            one_rr_per_rrset=one_rr_per_rrset,
+            ignore_trailing=ignore_trailing,
+        )
+        return response
+
+
+def ends_with_dot(name):
+    if name == "" or not name.endswith("."):
+        return name + "."
+    else:
+        return name
+
+
+def make_nameserver(protocol, ip, port):
+    if protocol == "udp":
+        return UdpNameServer(ip, port)
+    elif protocol == "tcp":
+        return TcpNameServer(ip, port)
+    elif protocol == "dot":
+        return dns.nameserver.DoTNameServer(ip, port)
+    elif protocol == "doh":
+        return dns.nameserver.DoHNameServer(ip, port)
+    elif protocol == "doq":
+        return dns.nameserver.DoQNameServer(ip, port)
+    else:
+        raise DnsUpdateError("invalid protocol")
+
+
 def check_ip(ipaddr, keys=('ipv4', 'ipv6')):
     """
     Check if a string is a valid ip address and also
@@ -104,16 +246,22 @@ def check_ip(ipaddr, keys=('ipv4', 'ipv6')):
     return keys[af == dns.inet.AF_INET6]
 
 
-def check_domain(domain, nameserver_ip):
-    fqdn = FQDN(host="connectivity-test", domain=domain)
+def check_domain(domain_name, domain_data):
+    logger.debug(("check_domain", domain_name, domain_data))
+    fqdn = FQDN(host="connectivity-test", domain=domain_name)
 
     from .models import Domain
-    d = Domain.objects.get(name=domain)
+    d = Domain.objects.get(name=domain_name)
     # temporarily update domain to allow add/update/deletes
     domain_available_state = d.available
     domain_nameserver_ip = d.nameserver_ip
     d.available = True
-    d.nameserver_ip = nameserver_ip
+    d.nameserver_ip = domain_data["nameserver_ip"]
+    d.nameserver_port = domain_data["nameserver_port"]
+    d.nameserver_protocol = domain_data["nameserver_protocol"]
+    d.nameserver2_ip = domain_data["nameserver2_ip"]
+    d.nameserver2_port = domain_data["nameserver2_port"]
+    d.nameserver2_protocol = domain_data["nameserver2_protocol"]
     d.save()
 
     try:
@@ -121,6 +269,7 @@ def check_domain(domain, nameserver_ip):
         add(fqdn, socket.inet_ntoa(struct.pack('>I', random.randint(1, 0xffffffff))))
 
     except (dns.exception.DNSException, DnsUpdateError) as e:
+        logger.error("Dns error, raising upward: " + str(e))
         raise NameServerNotAvailable(str(e))
 
     finally:
@@ -144,6 +293,7 @@ def add(fqdn, ipaddr, ttl=60):
     """
     assert isinstance(fqdn, FQDN)
     rdtype = check_ip(ipaddr, keys=('A', 'AAAA'))
+    logger.debug("add %s" % str(fqdn))
     try:
         current_ipaddr = query_ns(fqdn, rdtype)
         # check if ip really changed
@@ -243,10 +393,13 @@ def query_ns(fqdn, rdtype, prefer_primary=False):
     """
     assert isinstance(fqdn, FQDN)
     nameserver, nameserver2, origin = get_ns_info(fqdn)[0:3]
+    logger.debug("query_ns: %s" % (str(nameserver)))
+    logger.debug("query_ns: %s" % (str(nameserver2)))
+    logger.debug("query_ns: %s" % (str(origin)))
     resolver = dns.resolver.Resolver(configure=False)
     # we do not configure it from resolv.conf, but patch in the values we
     # want into the documented attributes:
-    resolver.nameservers = [nameserver, ]
+    resolver.nameservers = [nameserver, nameserver2]
     if nameserver2:
         pos = 1 if prefer_primary else 0
         resolver.nameservers.insert(pos, nameserver2)
@@ -258,6 +411,7 @@ def query_ns(fqdn, rdtype, prefer_primary=False):
     # recursion. But: RD (recursion desired) is the internal default for flags
     # (used if flags = None is given). Thus, we explicitly give flags (all off):
     resolver.flags = 0
+    logger.debug("query_ns: fqdn: %s" % str(fqdn))
     try:
         answer = resolver.resolve(str(fqdn), rdtype, search=True)
         ip = str(list(answer)[0])
@@ -336,9 +490,12 @@ def get_ns_info(fqdn):
         else:
             # retry timeout is over, set it available again
             set_ns_availability(domain, True)
+    logger.debug("get_ns_info: domain: " + str(model_to_dict(d)))
     algorithm = getattr(dns.tsig, d.nameserver_update_algorithm)
-    return (d.nameserver_ip, d.nameserver2_ip, fqdn.domain, domain, fqdn.host, domain,
-            d.nameserver_update_secret, algorithm)
+    logger.debug("get_ns_info: algorithm: " + str(algorithm))
+    ns1 = make_nameserver(d.nameserver_protocol, d.nameserver_ip, d.nameserver_port)
+    ns2 = make_nameserver(d.nameserver2_protocol, d.nameserver2_ip, d.nameserver2_port)
+    return (ns1, ns2, fqdn.domain, domain, fqdn.host, d.nameserver_update_key_name, d.nameserver_update_secret, algorithm)
 
 
 def dns_update_error(domain, exc, error):
@@ -360,15 +517,16 @@ def update_ns(fqdn, rdtype='A', ipaddr=None, action='upd', ttl=60):
     :raises: DnsUpdateError, Timeout
     """
     assert isinstance(fqdn, FQDN)
-    assert action in ['add', 'del', 'upd', ]
+    assert action in ['add', 'del', 'upd']
     nameserver, nameserver2, origin, domain, name, keyname, key, algo = get_ns_info(fqdn)
+    logger.debug("update_ns: (%s,%s,%s)" % (keyname, key, algo))
     try:
         keyring = dns.tsigkeyring.from_text({keyname: key})
     except (UnicodeError, binascii.Error) as e:
         msg = "Exception when building keyring for %s: [%s]" % (keyname, str(e))
         logger.error(msg)
         raise DnsUpdateError(msg)
-    upd = dns.update.Update(origin, keyring=keyring, keyalgorithm=algo)
+    upd = dns.update.UpdateMessage(origin, keyring=keyring, keyalgorithm=algo)
     if action == 'add':
         assert ipaddr is not None
         upd.add(name, ttl, rdtype, ipaddr)
@@ -377,10 +535,11 @@ def update_ns(fqdn, rdtype='A', ipaddr=None, action='upd', ttl=60):
     elif action == 'upd':
         assert ipaddr is not None
         upd.replace(name, ttl, rdtype, ipaddr)
-    logger.debug("performing %s for name %s and origin %s with rdtype %s and ipaddr %s" % (
-                 action, name, origin, rdtype, ipaddr))
+    logger.warning("performing %s for name %s and origin %s with rdtype %s and ipaddr %s" % (action, name, origin, rdtype, ipaddr))
+    dns_update_error = False
     try:
-        response = dns.query.tcp(upd, nameserver, timeout=UPDATE_TIMEOUT)
+        # response = dns.query.tcp(upd, nameserver, timeout=UPDATE_TIMEOUT)
+        response = nameserver.query(upd, timeout=UPDATE_TIMEOUT)
         rcode = response.rcode()
         if rcode != dns.rcode.NOERROR:
             rcode_text = dns.rcode.to_text(rcode)
@@ -405,6 +564,130 @@ def update_ns(fqdn, rdtype='A', ipaddr=None, action='upd', ttl=60):
         dns_update_error(domain, e, f"UnknownTSIGKey [{e}] - zone: {origin}")
     except dns.exception.DNSException as e:
         dns_update_error(domain, e, str(e))
+
+
+def update_zone(zone_name, changes):
+    """
+    update the master server
+
+    :param the zone name to be updated, as it exists in the db
+    :param adds: list of RRs to be added, as an array of dictionaries like {"name":, "class":, "type":, "ttl":, "data:"}
+    :param deletes: list of RR to be deleted, in the same format. Note, here we do not replace, only delete and add.
+    :return: nothing means success
+    :raises: DnsUpdateError, Timeout
+    """
+    nameserver, nameserver2, origin, domain, name, keyname, key, algo = get_ns_info(FQDN(host=None, domain=zone_name))
+    logger.debug("update_key: (%s,%s,%s)" % (keyname, key, algo))
+    try:
+        keyring = dns.tsigkeyring.from_text({keyname: key})
+    except (UnicodeError, binascii.Error) as e:
+        msg = "Exception when building keyring for %s: [%s]" % (keyname, str(e))
+        logger.error(msg)
+        raise DnsUpdateError(msg)
+    upd = dns.update.UpdateMessage(origin, keyring=keyring, keyalgorithm=algo)
+    for change in changes:
+        logger.error("change")
+        logger.error(change)
+        rr_name = dns.name.from_unicode(change["name"])
+        rr_class = dns.rdataclass.from_text(change["class"])
+        rr_type = dns.rdatatype.from_text(change["type"])
+        rr_ttl = dns.ttl.from_text(str(change["ttl"]))
+        rr_data = change["data"]
+        zone_rdclass_bkp = False
+        if change["class"] != "IN":
+            zone_rdclass_bkp = upd.zone_rdclass
+            upd.zone_rdclass = dns.rdataclass.RdataClass.make(change["class"])
+        if change["state"] == "to-add":
+            upd.add(change["name"], change["ttl"], change["type"], change["data"])
+        elif change["state"] == "to-delete":
+            upd.delete(change["name"], change["type"], change["data"])
+        else:
+            raise DnsUpdateError("internal error")
+        if zone_rdclass_bkp:
+            upd.zone_rdclass = zone_rdclass_bkp
+    dns_update_error = False
+    try:
+        # response = dns.query.tcp(upd, nameserver, timeout=UPDATE_TIMEOUT)
+        response = nameserver.query(upd, timeout=UPDATE_TIMEOUT)
+        rcode = response.rcode()
+        if rcode != dns.rcode.NOERROR:
+            rcode_text = dns.rcode.to_text(rcode)
+            logger.warning("DNS error [%s] for name %s and origin %s" % (rcode_text, name, origin))
+            raise DnsUpdateError(rcode_text)
+        return response
+    except OSError as e:  # was: socket.error (deprecated)
+        dns_update_error(domain, e, f"OSError [{e}] - zone: {origin}")
+    except EOFError as e:
+        dns_update_error(domain, e, f"EOFError [{e}] - zone: {origin}")
+    except dns.exception.Timeout as e:
+        dns_update_error(domain, e, f"timeout when performing {action} for name {name} and origin {origin} with rdtype {rdtype} and ipaddr {ipaddr}")
+    except dns.tsig.PeerBadSignature as e:
+        dns_update_error(domain, e, f"PeerBadSignature - shared secret mismatch? zone: {origin}")
+    except dns.tsig.PeerBadKey as e:
+        dns_update_error(domain, e, f"PeerBadKey - shared secret mismatch? zone: {origin}")
+    except dns.tsig.PeerBadTime as e:
+        dns_update_error(domain, e, f"PeerBadTime - DNS server did not like the time we sent. zone: {origin}")
+    except dns.message.UnknownTSIGKey as e:
+        dns_update_error(domain, e, f"UnknownTSIGKey [{e}] - zone: {origin}")
+    except dns.exception.DNSException as e:
+        dns_update_error(domain, e, str(e))
+
+def download_zone(domain):
+    logger.warning("download_zone, protocol: " + str(domain.nameserver_protocol))
+    if domain.nameserver_protocol != "tcp":
+        raise DnsUpdateError(_("AXFR/IXFR is supported only on TCP-based DNS servers, yet"))
+
+    # def axfr_with_tsig(server, zone_name, key_name, key_secret_b64, key_alg=TSIG_ALGORITHM):
+    # Build a keyring (name -> base64 secret)
+    keyring = dns.tsigkeyring.from_text({
+        domain.nameserver_update_key_name: domain.nameserver_update_secret
+    })
+
+    logger.error("domain.name: %s" % domain.name)
+    # Initiate the transfer iterator; pass keyring and keyname/algorithm
+    try:
+        xfr_iter = dns.query.xfr(
+            where=domain.nameserver_ip,
+            port=domain.nameserver_port,
+            zone=domain.name,
+            keyring=keyring,
+            keyname=domain.nameserver_update_key_name,
+            keyalgorithm=getattr(dns.tsig, domain.nameserver_update_algorithm),
+            lifetime=UPDATE_TIMEOUT,
+            use_udp=False
+        )
+    except Exception as e:
+        logger.error("Failed to start transfer:", e)
+        raise DnsUpdateError(repr(e))
+
+    # Build a Zone from the transfer iterator
+    try:
+        zone = dns.zone.from_xfr(xfr_iter, relativize=True, check_origin=False)
+    except dns.exception.FormError as e:
+        logger.error("Transfer failed / bad data:", e)
+        raise DnsUpdateError(repr(e))
+    except Exception as e:
+        logger.error("AXFR/IXFR error:", e)
+        raise DnsUpdateError(repr(e))
+
+    logger.debug("Zone origin: " + str(zone.origin))
+    logger.debug("Number of nodes: " + str(len(zone.nodes)))
+
+    result = []
+    for name, node in zone.nodes.items():
+        for rdataset in node.rdatasets:
+            for rdata in rdataset:
+                record_dict = {
+                    "name": ends_with_dot(name.to_text() + "." + domain.name),
+                    "ttl": rdataset.ttl,
+                    "class": dns.rdataclass.to_text(rdataset.rdclass),
+                    "type": dns.rdatatype.to_text(rdataset.rdtype),
+                    "data": str(rdata)
+                }
+                # logger.warning(record_dict)
+                result += [record_dict]
+
+    return result
 
 
 def set_ns_availability(domain, available):

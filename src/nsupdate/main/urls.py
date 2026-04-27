@@ -6,7 +6,7 @@ from django.urls import re_path
 
 from .views import (
     HomeView, OverviewView, HostView, AddHostView, DeleteHostView, AboutView, GenerateSecretView, GenerateNSSecretView,
-    RobotsTxtView, DomainView, AddDomainView, DeleteDomainView, StatusView, JsUpdateView,
+    RobotsTxtView, DomainView, AddDomainView, DeleteDomainView, ZoneEditorHtmlView, ZoneEditorJsonView, StatusView, JsUpdateView,
     UpdaterHostConfigOverviewView, UpdaterHostConfigView, DeleteUpdaterHostConfigView,
     RelatedHostOverviewView, RelatedHostView, AddRelatedHostView, DeleteRelatedHostView, CustomTemplateView)
 from ..api.views import (
@@ -35,6 +35,9 @@ urlpatterns = (
     re_path(r'^domain/(?P<pk>\d+)/$', DomainView.as_view(), name='domain_view'),
     re_path(r'^domain/add/$', AddDomainView.as_view(), name='add_domain'),
     re_path(r'^domain/(?P<pk>\d+)/delete/$', DeleteDomainView.as_view(), name='delete_domain'),
+    re_path(r'^domain/(?P<pk>\d+)/zone_editor/$', ZoneEditorHtmlView.as_view(), name='zone_editor'),
+    re_path(r'^domain/(?P<pk>\d+)/zone_json/$', ZoneEditorJsonView.as_view(action="get_json"), name='zone_editor_json'),
+    re_path(r'^domain/(?P<pk>\d+)/zone_jsonp/$', ZoneEditorJsonView.as_view(action="get_jsonp"), name='zone_editor_jsonp'),
     re_path(r'^updater_hostconfig_overview/(?P<pk>\d+)/$', UpdaterHostConfigOverviewView.as_view(),
             name='updater_hostconfig_overview'),
     re_path(r'^updater_hostconfig/(?P<pk>\d+)/$', UpdaterHostConfigView.as_view(), name='updater_hostconfig'),

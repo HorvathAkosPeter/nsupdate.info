@@ -1,0 +1,157 @@
+.container {
+  width: auto;
+  min-width: 1170px;
+  max-width: none;
+}
+
+#zone_editor_grid {
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 18px;
+  margin-top: 18px;
+}
+
+#zone_editor_controls {
+  text-align: center;
+  margin-bottom: 18px;
+  display: block;
+}
+
+#zone_editor_controls > button {
+  display: inline-block;
+}
+
+@keyframes zone_editor_reload {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.5) rotate(180deg);
+    opacity: 0.85;
+  }
+  100% {
+    transform: scale(1) rotate(360deg);
+    opacity: 1;
+  }
+}
+
+.zone_editor_reload_anim {
+  animation: zone_editor_reload 1.2s ease-in-out infinite;
+}
+
+@keyframes zone_editor_apply {
+  0% {
+    bottom: 0px;
+  }
+  50% {
+    bottom: 0.5em;
+  }
+  100% {
+    bottom: 1em;
+  }
+}
+
+.zone_editor_apply_anim {
+  animation: zone_editor_apply 1.2s ease-in-out infinite;
+}
+
+.ag-theme-alpine {
+  font-family: "Open Sans", sans-serif;
+}
+
+.ag-theme-alpine .ag-header-cell-label {
+  text-align: center;
+  justify-content: center;
+}
+
+.zone_editor_name {
+}
+
+.zone_editor_class {
+  text-align: center;
+}
+
+.zone_editor_type {
+  text-align: center;
+}
+
+.zone_editor_ttl {
+  text-align: right;
+}
+
+.zone_editor_data.ag-cell,
+.ag-header-cell[col-id="data"] {
+  border-right: var(--ag-border-color) solid 1px;
+}
+
+.zone_editor_controls {
+}
+
+.zone_editor_error {
+}
+
+.zone_editor_row_vanilla {
+}
+
+.zone_editor_row_to_delete {
+  background-color: #fee;
+}
+
+.zone_editor_row_to_add {
+  background-color: #efe;
+}
+
+.ag-row-error {
+}
+
+.ag-ltr .ag-cell.ag-cell-focus.zone_editor_state {
+  border-color: transparent;
+}
+
+.ag-ltr .ag-cell.ag-cell-focus.zone_editor_controls {
+  border-color: transparent;
+}
+
+.ag-ltr .ag-cell.ag-cell-focus.zone_editor_error {
+  border-color: transparent;
+}
+
+.zone_editor_row_to_add .zone_editor_btn_edit,
+.zone_editor_row_vanilla .zone_editor_btn_cancel,
+.zone_editor_row_to_delete .zone_editor_btn_delete,
+.zone_editor_row_to_delete .zone_editor_btn_edit,
+.zone_editor_row_to_add .zone_editor_btn_delete {
+  display: none;
+}
+
+.zone_editor_row_to_add .zone_editor_name::after,
+.zone_editor_row_to_add .zone_editor_class::after,
+.zone_editor_row_to_add .zone_editor_type::after,
+.zone_editor_row_to_add .zone_editor_ttl::after,
+.zone_editor_row_to_add .zone_editor_data::after {
+  /* content: var(--fa); */
+  content: " \f044";
+  font-family: "Font Awesome 7 Free";
+  /*
+  position: absolute;
+  right: 0;
+  top: 0;
+  */
+  opacity: 0.5;
+}
+
+.zone_editor_button_pressed,
+.zone_editor_button_pressed:hover {
+  /* border-color: var(--bs-btn-color); */
+  background-color: var(--bs-btn-color);
+  color: var(--bs-btn-bg);
+}
+
+.zone_editor_hide_help {
+  display: none;
+}
+
+.zone_editor_apply > i {
+  position: relative;
+}
