@@ -10,6 +10,7 @@ local_settings.py
 dist/
 docs/_build/
 src/nsupdate/_version.py
+src/nsupdate/locale/*/LC_MESSAGES/*.mo
 
 # idea
 .idea/
