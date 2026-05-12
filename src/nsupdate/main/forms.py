@@ -60,10 +60,8 @@ class CreateDomainForm(forms.ModelForm):
     class Meta(object):
         model = Domain
         fields = ['name',
-                  'public', 'available',
                   'nameserver_ip', 'nameserver_port', 'nameserver_protocol',
                   'nameserver2_ip', 'nameserver2_port', 'nameserver2_protocol',
-                  'nameserver_update_key_name', 'nameserver_update_algorithm', 'nameserver_update_secret',
                   'comment']
         widgets = {
             'name': forms.widgets.TextInput(attrs=dict(autofocus=None)),
@@ -81,7 +79,6 @@ class EditDomainForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super(EditDomainForm, self).clean()
-        logger.debug("cleaned_data: " + str(cleaned_data))
 
         if self.cleaned_data['available']:
             try:
@@ -112,8 +109,7 @@ class EditDomainForm(forms.ModelForm):
                   'nameserver_ip', 'nameserver_port', 'nameserver_protocol',
                   'nameserver2_ip', 'nameserver2_port', 'nameserver2_protocol',
                   'nameserver_update_key_name', 'nameserver_update_algorithm', 'nameserver_update_secret',
-                  'comment'
-        ]
+                  'comment']
 
 
 class CreateUpdaterHostConfigForm(forms.ModelForm):

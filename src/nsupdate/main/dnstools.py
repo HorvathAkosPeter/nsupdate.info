@@ -24,8 +24,6 @@ from collections import namedtuple
 import logging
 logger = logging.getLogger(__name__)
 
-import traceback
-
 import socket
 import random
 import struct
@@ -33,7 +31,6 @@ import struct
 import dns.inet
 import dns.message
 import dns.name
-import dns.nameserver
 import dns.resolver
 import dns.query
 import dns.update
@@ -42,9 +39,8 @@ import dns.tsigkeyring
 import dns.exception
 
 from django.utils.timezone import now
-from django.forms.models import model_to_dict
 
-from nsupdate.utils.dnspython import UdpNameServer, TcpNameServer, make_nameserver
+from nsupdate.utils.dnspython import make_nameserver
 
 
 class FQDN(namedtuple('FQDN', ['host', 'domain'])):
@@ -117,14 +113,19 @@ def check_domain(domain_name, domain_data):
     domain = Domain.objects.get(name=domain_name)
     # temporarily update domain to allow add/update/deletes
     domain_available_state = domain.available
+    domain_nameserver_protocol = domain.nameserver_protocol
     domain_nameserver_ip = domain.nameserver_ip
+    domain_nameserver_port = domain.nameserver_port
+    domain_nameserver2_protocol = domain.nameserver2_protocol
+    domain_nameserver2_ip = domain.nameserver2_ip
+    domain_nameserver2_port = domain.nameserver2_port
     domain.available = True
+    domain.nameserver_protocol = domain_data["nameserver_protocol"]
     domain.nameserver_ip = domain_data["nameserver_ip"]
     domain.nameserver_port = domain_data["nameserver_port"]
-    domain.nameserver_protocol = domain_data["nameserver_protocol"]
+    domain.nameserver2_protocol = domain_data["nameserver2_protocol"]
     domain.nameserver2_ip = domain_data["nameserver2_ip"]
     domain.nameserver2_port = domain_data["nameserver2_port"]
-    domain.nameserver2_protocol = domain_data["nameserver2_protocol"]
     domain.save()
 
     try:
@@ -138,7 +139,12 @@ def check_domain(domain_name, domain_data):
     finally:
         # reset domain
         domain.available = domain_available_state
+        domain.nameserver_protocol = domain_nameserver_protocol
         domain.nameserver_ip = domain_nameserver_ip
+        domain.nameserver_port = domain_nameserver_port
+        domain.nameserver2_protocol = domain_nameserver2_protocol
+        domain.nameserver2_ip = domain_nameserver2_ip
+        domain.nameserver2_port = domain_nameserver2_port
         domain.save()
 
 
@@ -352,12 +358,12 @@ def get_ns_info(fqdn):
         else:
             # retry timeout is over, set it available again
             set_ns_availability(domain, True)
-    logger.debug("get_ns_info: domain: " + str(model_to_dict(d)))
     algorithm = getattr(dns.tsig, d.nameserver_update_algorithm)
     logger.debug("get_ns_info: algorithm: " + str(algorithm))
     ns1 = make_nameserver(d.nameserver_protocol, d.nameserver_ip, d.nameserver_port)
     ns2 = make_nameserver(d.nameserver2_protocol, d.nameserver2_ip, d.nameserver2_port)
-    return (ns1, ns2, fqdn.domain, domain, fqdn.host, d.nameserver_update_key_name, d.nameserver_update_secret, algorithm)
+    return (ns1, ns2, fqdn.domain, domain, fqdn.host,
+            d.nameserver_update_key_name, d.nameserver_update_secret, algorithm)
 
 
 def dns_update_error(domain, exc, error):
@@ -397,7 +403,8 @@ def update_ns(fqdn, rdtype='A', ipaddr=None, action='upd', ttl=60):
     elif action == 'upd':
         assert ipaddr is not None
         upd.replace(name, ttl, rdtype, ipaddr)
-    logger.debug("performing %s for name %s and origin %s with rdtype %s and ipaddr %s" % (action, name, origin, rdtype, ipaddr))
+    logger.debug("performing %s for name %s and origin %s with rdtype %s and ipaddr %s" %
+                 (action, name, origin, rdtype, ipaddr))
     try:
         response = nameserver.query(upd, timeout=UPDATE_TIMEOUT)
         rcode = response.rcode()
@@ -413,7 +420,8 @@ def update_ns(fqdn, rdtype='A', ipaddr=None, action='upd', ttl=60):
     except EOFError as e:
         dns_update_error(domain, e, f"EOFError [{e}] - zone: {origin}")
     except dns.exception.Timeout as e:
-        dns_update_error(domain, e, f"timeout when performing {action} for name {name} and origin {origin} with rdtype {rdtype} and ipaddr {ipaddr}")
+        dns_update_error(domain, e,
+                         f"timeout when performing {action} for name {name} and origin {origin} with rdtype {rdtype} and ipaddr {ipaddr}")
     except dns.tsig.PeerBadSignature as e:
         dns_update_error(domain, e, f"PeerBadSignature - shared secret mismatch? zone: {origin}")
     except dns.tsig.PeerBadKey as e:

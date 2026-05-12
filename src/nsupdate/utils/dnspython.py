@@ -121,6 +121,8 @@ class TcpNameServer(dns.nameserver.AddressAndPortNameserver):
 
 
 def make_nameserver(protocol, ip, port):
+    if not protocol or not ip or not port:
+        return None
     match protocol.lower():
         case "udp":
             return UdpNameServer(ip, port)
