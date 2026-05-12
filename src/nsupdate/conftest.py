@@ -2,6 +2,7 @@
 configuration for the (py.test based) tests
 """
 
+import os
 import pytest
 
 from random import randint
@@ -21,7 +22,9 @@ RELATED_HOST_NAME = 'rh'
 TEST_HOST_RELATED = FQDN(RELATED_HOST_NAME + '.' + TEST_HOST.host, TEST_HOST.domain)
 NAMESERVER_IP = "127.0.0.1"
 NAMESERVER_PORT = 9053
+NAMESERVER_PROTOCOL = "tcp"
 NAMESERVER2_IP = NAMESERVER_IP  # use same server as tests query shortly after update, too quick for secondary
+NAMESERVER2_PROTOCOL = "tcp"
 NAMESERVER_UPDATE_ALGORITHM = "HMAC_SHA512"
 # no problem, you can ONLY update the TESTDOMAIN with this secret, nothing else:
 NAMESERVER_UPDATE_SECRET = "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYQ=="
@@ -131,3 +134,11 @@ def db_init(db):  # note: db is a predefined fixture and required here to have t
 
 def pytest_runtest_setup(item):
     activate('en')
+
+# imports local test overrides if they exist
+test_override_path = os.path.join(os.path.dirname(__file__), "test_override.py")
+
+if os.path.exists(test_override_path):
+    from .test_override import *
+else:
+    pass
