@@ -147,7 +147,7 @@ class Domain(models.Model):
     nameserver_update_key_name = models.CharField(
         _("nameserver update key name"),
         max_length=128,
-        default='',
+        default='',  # .save() will change to the domain name if left empty
         help_text=_("Name of the key as it is in your name server configuration, also key names are part of the signature."))
     nameserver_update_algorithm = models.CharField(
         _("nameserver update algorithm"),
@@ -198,6 +198,11 @@ class Domain(models.Model):
 
     def get_bind9_algorithm(self):
         return UPDATE_ALGORITHMS.get(self.nameserver_update_algorithm).bind_name
+
+    def save(self, *args, **kwargs):
+        if not self.nameserver_update_key_name:
+            self.nameserver_update_key_name = self.name
+        super().save(*args, **kwargs)
 
     class Meta:
         verbose_name = _('domain')
@@ -339,7 +344,7 @@ class Host(models.Model):
         record = 'A' if kind == 'ipv4' else 'AAAA'
         try:
             return dnstools.query_ns(self.get_fqdn(), record)
-        except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer):
+        except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer, IndexError):
             return None
         except (dns.resolver.NoNameservers, dns.resolver.Timeout, dnstools.NameServerNotAvailable,
                 dns.message.UnknownTSIGKey):

@@ -37,6 +37,7 @@ import dns.update
 import dns.tsig
 import dns.tsigkeyring
 import dns.exception
+import dns.rdatatype
 
 from django.utils.timezone import now
 
@@ -133,7 +134,7 @@ def check_domain(domain_name, domain_data):
         add(fqdn, socket.inet_ntoa(struct.pack('>I', random.randint(1, 0xffffffff))))
 
     except (dns.exception.DNSException, DnsUpdateError) as e:
-        logger.error("DNS error, raising upward: " + str(e))
+        logger.debug("DNS error, raising upward: " + str(e))
         raise NameServerNotAvailable(str(e))
 
     finally:
@@ -248,6 +249,22 @@ def update(fqdn, ipaddr, ttl=60):
         raise SameIpError
 
 
+def extract_response(response, rdtype):
+    results = []
+    seen = set()
+    if response is None:
+        return []
+    logger.debug("response: %s" % str(response))
+    for rrset in getattr(response, "answer", []):
+        logger.debug("rrset: %s" % str(rrset))
+        logger.debug("rrset.rdtype: %s, rdtype: %s" % (dns.rdatatype.to_text(rrset.rdtype), str(rdtype)))
+        if dns.rdatatype.to_text(rrset.rdtype) == str(rdtype):
+            for item in rrset.items:
+                results.append(item.to_text())
+    logger.warning("results: %s" % str(results))
+    return results
+
+
 def query_ns(fqdn, rdtype, prefer_primary=False):
     """
     query a dns name from our DNS server(s)
@@ -269,6 +286,7 @@ def query_ns(fqdn, rdtype, prefer_primary=False):
     if nameserver2:
         pos = 1 if prefer_primary else 0
         nameservers.insert(pos, nameserver2)
+    logger.debug(nameservers)
     # we must end fqdn with "." (to prevent ending it with the default service server's domain).
     fqdn_str = str(fqdn)
     if not fqdn_str.endswith("."):
@@ -278,20 +296,19 @@ def query_ns(fqdn, rdtype, prefer_primary=False):
     # here explicitly no-recursion is asked
     query.flags &= dns.flags.RD
 
-    logger.debug(f"query_ns: fqdn={fqdn}")
-
-    for idx, ns in nameservers:
+    for idx, ns in enumerate(nameservers):
         is_last = idx == len(nameservers) - 1
         try:
-            answer = ns.query(query)
-            ip = str(list(answer)[0])
-            logger.debug("query: %s answer: %s" % (fqdn, ip))
-            return ip
-        except (dns.exception.DNSException, OSError, EOFError) as e:
-            logger.warning("error when querying for name '%s' in zone '%s' with rdtype '%s' [%s]." % (
-                           fqdn.host, origin, rdtype, str(e)))
-            set_ns_availability(origin, False)
+            response = ns.query(query, RESOLVER_TIMEOUT)
+            logger.debug("response: %s" % str(response))
+            results = extract_response(response, rdtype)
+            result = str(results[0])
+            return result
+        except (dns.exception.DNSException, OSError, EOFError, IndexError, TypeError) as e:
+            logger.debug("error when querying for name '%s' in zone '%s' with rdtype '%s' [%s]." % (
+                         fqdn.host, origin, rdtype, str(e)))
             if is_last:
+                set_ns_availability(origin, False)
                 raise
 
 
@@ -362,7 +379,6 @@ def get_ns_info(fqdn):
             # retry timeout is over, set it available again
             set_ns_availability(domain, True)
     algorithm = getattr(dns.tsig, d.nameserver_update_algorithm)
-    logger.debug("get_ns_info: algorithm: " + str(algorithm))
     ns1 = make_nameserver(d.nameserver_protocol, d.nameserver_ip, d.nameserver_port)
     ns2 = make_nameserver(d.nameserver2_protocol, d.nameserver2_ip, d.nameserver2_port)
     return (ns1, ns2, fqdn.domain, domain, fqdn.host,

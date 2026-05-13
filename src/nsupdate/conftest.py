@@ -42,7 +42,10 @@ SERVER = 'ipv4.' + BASEDOMAIN
 SECURE = False  # Do not use TLS for these tests.
 
 
-# imports local test overrides if they exist
+# Values above can locally be overridden by a test_override.py right beside this conftest.py .
+# This file is gitignored, similarly to local_settings.py . For example, by running test with a different BASE_DOMAIN,
+# enter a line "BASE_DOMAIN=your.alternate.domain" into test_override.py .
+
 test_override_path = os.path.join(os.path.dirname(__file__), "test_override.py")
 
 if os.path.exists(test_override_path):
