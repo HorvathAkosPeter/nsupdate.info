@@ -20,11 +20,13 @@ TEST_HOST2 = FQDN('test%db' % randint(1, 1000000), TESTDOMAIN)
 TEST_SECRET2 = "somethingelse"
 RELATED_HOST_NAME = 'rh'
 TEST_HOST_RELATED = FQDN(RELATED_HOST_NAME + '.' + TEST_HOST.host, TEST_HOST.domain)
-NAMESERVER_IP = "127.0.0.1"
-NAMESERVER_PORT = 9053
 NAMESERVER_PROTOCOL = "tcp"
-NAMESERVER2_IP = NAMESERVER_IP  # use same server as tests query shortly after update, too quick for secondary
+NAMESERVER_IP = "127.0.0.1"
+NAMESERVER_PORT = 53
 NAMESERVER2_PROTOCOL = "tcp"
+NAMESERVER2_IP = NAMESERVER_IP  # use same server as tests query shortly after update, too quick for secondary
+NAMESERVER2_PORT = 53
+NAMESERVER_UPDATE_KEY_NAME = TESTDOMAIN
 NAMESERVER_UPDATE_ALGORITHM = "HMAC_SHA512"
 # no problem, you can ONLY update the TESTDOMAIN with this secret, nothing else:
 NAMESERVER_UPDATE_SECRET = "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYQ=="
@@ -39,8 +41,17 @@ _PASSWORD = 'yUTvxjRwNu'  # no problem, is only used for this unit test
 SERVER = 'ipv4.' + BASEDOMAIN
 SECURE = False  # Do not use TLS for these tests.
 
-from django.utils.translation import activate
 
+# imports local test overrides if they exist
+test_override_path = os.path.join(os.path.dirname(__file__), "test_override.py")
+
+if os.path.exists(test_override_path):
+    from .test_override import *
+else:
+    pass
+
+
+from django.utils.translation import activate
 from nsupdate.main.dnstools import update_ns, FQDN
 
 
@@ -80,7 +91,12 @@ def db_init(db):  # note: db is a predefined fixture and required here to have t
     dt = Domain.objects.create(
         name=TESTDOMAIN,  # special: test-domain update secret!
         nameserver_ip=NAMESERVER_IP,
+        nameserver_protocol=NAMESERVER_PROTOCOL,
+        nameserver_port=NAMESERVER_PORT,
+        nameserver2_protocol=NAMESERVER2_PROTOCOL,
         nameserver2_ip=NAMESERVER2_IP,
+        nameserver2_port=NAMESERVER2_PORT,
+        nameserver_update_key_name=NAMESERVER_UPDATE_KEY_NAME,
         nameserver_update_algorithm=NAMESERVER_UPDATE_ALGORITHM,
         nameserver_update_secret=NAMESERVER_UPDATE_SECRET,
         public=NAMESERVER_PUBLIC,
@@ -134,11 +150,3 @@ def db_init(db):  # note: db is a predefined fixture and required here to have t
 
 def pytest_runtest_setup(item):
     activate('en')
-
-# imports local test overrides if they exist
-test_override_path = os.path.join(os.path.dirname(__file__), "test_override.py")
-
-if os.path.exists(test_override_path):
-    from .test_override import *
-else:
-    pass

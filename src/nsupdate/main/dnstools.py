@@ -263,33 +263,36 @@ def query_ns(fqdn, rdtype, prefer_primary=False):
     assert isinstance(fqdn, FQDN)
     nameserver, nameserver2, origin = get_ns_info(fqdn)[0:3]
     logger.debug(f"query_ns: ns={nameserver} ns2={nameserver2} origin={origin} fqdn={fqdn}")
-    resolver = dns.resolver.Resolver(configure=False)
     # we do not configure it from resolv.conf, but patch in the values we
     # want into the documented attributes:
-    resolver.nameservers = [nameserver, ]
+    nameservers = [nameserver, ]
     if nameserver2:
         pos = 1 if prefer_primary else 0
-        resolver.nameservers.insert(pos, nameserver2)
-    # we must put the root zone into the search list, so that if a fqdn without "."
-    # at the end comes in, it will append "." (and not the service server's domain).
-    resolver.search = [dns.name.root, ]
-    resolver.lifetime = RESOLVER_TIMEOUT
-    # as we query directly the (authoritative) master dns, we do not desire
-    # recursion. But: RD (recursion desired) is the internal default for flags
-    # (used if flags = None is given). Thus, we explicitly give flags (all off):
-    resolver.flags = 0
+        nameservers.insert(pos, nameserver2)
+    # we must end fqdn with "." (to prevent ending it with the default service server's domain).
+    fqdn_str = str(fqdn)
+    if not fqdn_str.endswith("."):
+        fqdn_str += "."
+    query = dns.message.make_query(fqdn_str, rdtype)
+
+    # here explicitly no-recursion is asked
+    query.flags &= dns.flags.RD
+
     logger.debug(f"query_ns: fqdn={fqdn}")
-    try:
-        answer = resolver.resolve(str(fqdn), rdtype, search=True)
-        ip = str(list(answer)[0])
-        logger.debug("query: %s answer: %s" % (fqdn, ip))
-        return ip
-    except (dns.resolver.Timeout, dns.resolver.LifetimeTimeout,
-            dns.resolver.NoNameservers, dns.message.UnknownTSIGKey) as e:  # OSError (socket.error) also?
-        logger.warning("error when querying for name '%s' in zone '%s' with rdtype '%s' [%s]." % (
-                       fqdn.host, origin, rdtype, str(e)))
-        set_ns_availability(origin, False)
-        raise
+
+    for idx, ns in nameservers:
+        is_last = idx == len(nameservers) - 1
+        try:
+            answer = ns.query(query)
+            ip = str(list(answer)[0])
+            logger.debug("query: %s answer: %s" % (fqdn, ip))
+            return ip
+        except (dns.exception.DNSException, OSError, EOFError) as e:
+            logger.warning("error when querying for name '%s' in zone '%s' with rdtype '%s' [%s]." % (
+                           fqdn.host, origin, rdtype, str(e)))
+            set_ns_availability(origin, False)
+            if is_last:
+                raise
 
 
 def rev_lookup(ipaddr):
@@ -414,8 +417,7 @@ def update_ns(fqdn, rdtype='A', ipaddr=None, action='upd', ttl=60):
                            rcode_text, action, name, origin, rdtype, ipaddr))
             raise DnsUpdateError(rcode_text)
         return response
-    # TODO simplify exception handling when https://github.com/rthalley/dnspython/pull/85 is merged/released
-    except OSError as e:  # was: socket.error (deprecated)
+    except OSError as e:
         dns_update_error(domain, e, f"OSError [{e}] - zone: {origin}")
     except EOFError as e:
         dns_update_error(domain, e, f"EOFError [{e}] - zone: {origin}")

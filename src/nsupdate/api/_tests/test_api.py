@@ -162,6 +162,7 @@ def test_nic_update_authorized_myip_v6(client):
     response = client.get(reverse('nic_update') + '?myip=2000::3',
                           HTTP_AUTHORIZATION=make_basic_auth_header(TEST_HOST, TEST_SECRET))
     assert response.status_code == 200
+    # assert TEST_HOST == TEST_SECRET
     # Must be nochg (was same IP).
     assert response.content == b'nochg 2000::3'
     # Now check if it updated the IPv6 related hosts also:
