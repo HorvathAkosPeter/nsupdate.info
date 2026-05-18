@@ -226,12 +226,15 @@ def update(fqdn, ipaddr, ttl=60):
     :raises: ValueError if ipaddr is no valid ip address string
     """
     assert isinstance(fqdn, FQDN)
+    logger.info("XX2 update %s: %s" % (str(fqdn), str(ipaddr)))
     rdtype = check_ip(ipaddr, keys=('A', 'AAAA'))
     try:
         current_ipaddr = query_ns(fqdn, rdtype)
+        logger.info("XX2 current ip: %s" % str(current_ipaddr))
         # check if ip really changed
         ok = ipaddr != current_ipaddr
     except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer):
+        logger.info("XX2 update: nxdomain or noanswer")
         # no dns entry yet, ok
         ok = True
     except (dns.resolver.Timeout, dns.resolver.NoNameservers) as e:  # OSError (socket.error) also?
@@ -278,6 +281,7 @@ def query_ns(fqdn, rdtype, prefer_primary=False):
     :raises: see dns.resolver.Resolver.resolve
     """
     assert isinstance(fqdn, FQDN)
+    logger.debug(f"query_ns: fqdn={fqdn} rdtype={rdtype} prefer_primary={prefer_primary}")
     nameserver, nameserver2, origin = get_ns_info(fqdn)[0:3]
     logger.debug(f"query_ns: ns={nameserver} ns2={nameserver2} origin={origin} fqdn={fqdn}")
     # we do not configure it from resolv.conf, but patch in the values we
@@ -299,16 +303,20 @@ def query_ns(fqdn, rdtype, prefer_primary=False):
     for idx, ns in enumerate(nameservers):
         is_last = idx == len(nameservers) - 1
         try:
+            logger.debug(f"ns: {ns}")
             response = ns.query(query, RESOLVER_TIMEOUT)
             logger.debug("response: %s" % str(response))
             results = extract_response(response, rdtype)
+            if len(results) == 0:
+                raise dns.resolver.NXDOMAIN(fqdn_str)
             result = str(results[0])
             return result
-        except (dns.exception.DNSException, OSError, EOFError, IndexError, TypeError) as e:
+        except (dns.exception.DNSException, OSError, EOFError) as e:
             logger.debug("error when querying for name '%s' in zone '%s' with rdtype '%s' [%s]." % (
                          fqdn.host, origin, rdtype, str(e)))
             if is_last:
-                set_ns_availability(origin, False)
+                if not isinstance(e, dns.resolver.NXDOMAIN):
+                    set_ns_availability(origin, False)
                 raise
 
 
@@ -357,6 +365,7 @@ def get_ns_info(fqdn):
     """
     assert isinstance(fqdn, FQDN)
     from .models import Domain
+    logger.info("here I am #6")
     try:
         # first we check if we have an entry for the fqdn
         # single-host update secret use case
@@ -368,7 +377,7 @@ def get_ns_info(fqdn):
         # zone update secret use case
         domain = fqdn.domain
         d = Domain.objects.get(name=domain)
-    logger.warning(vars(d))
+    logger.info("here I am #7. availability: %s" % str(d.available))
     if not d.available:
         if d.last_update + timedelta(seconds=UNAVAILABLE_RETRY) > now():
             # if there are troubles with a nameserver, we set available=False
@@ -379,6 +388,7 @@ def get_ns_info(fqdn):
             # retry timeout is over, set it available again
             set_ns_availability(domain, True)
     algorithm = getattr(dns.tsig, d.nameserver_update_algorithm)
+    logger.info("here I am #8")
     ns1 = make_nameserver(d.nameserver_protocol, d.nameserver_ip, d.nameserver_port)
     ns2 = make_nameserver(d.nameserver2_protocol, d.nameserver2_ip, d.nameserver2_port)
     return (ns1, ns2, fqdn.domain, domain, fqdn.host,
@@ -403,10 +413,11 @@ def update_ns(fqdn, rdtype='A', ipaddr=None, action='upd', ttl=60):
     :return: dns response
     :raises: DnsUpdateError, Timeout
     """
+    logger.info("here I am #5")
     assert isinstance(fqdn, FQDN)
     assert action in ['add', 'del', 'upd', ]
     nameserver, nameserver2, origin, domain, name, keyname, key, algo = get_ns_info(fqdn)
-    logger.debug("update_ns: (%s,%s,%s)" % (keyname, key, algo))
+    logger.info("update_ns: (%s,%s,%s)" % (keyname, key, algo))
     try:
         keyring = dns.tsigkeyring.from_text({keyname: key})
     except (UnicodeError, binascii.Error) as e:
@@ -424,6 +435,15 @@ def update_ns(fqdn, rdtype='A', ipaddr=None, action='upd', ttl=60):
         upd.replace(name, ttl, rdtype, ipaddr)
     logger.debug("performing %s for name %s and origin %s with rdtype %s and ipaddr %s" %
                  (action, name, origin, rdtype, ipaddr))
+    """
+    if name.startswith("rh."):
+        try:
+            1 / 0
+        except Exception as e:
+            logger.exception("here I am #9")
+            raise
+    """
+
     try:
         response = nameserver.query(upd, timeout=UPDATE_TIMEOUT)
         rcode = response.rcode()
