@@ -14,6 +14,8 @@ DONE implement a zone editor
 - review rejected pull requests
 - on domain generation, it overwrites the key with a self-generated one
 - /delete method with GET should result a HTML "are you sure" page. With POST it should delete, then put a feedback with a link to the overview.
+- users should be able to create or edit updaters (?)
+- updaters need a port setting
 
 ---
 For the zone editor PR:
