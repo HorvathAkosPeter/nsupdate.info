@@ -47,3 +47,12 @@ zone "tests.nsupdate.info" {
             grant tests.nsupdate.info. subdomain tests.nsupdate.info;
         };
 };
+
+zone "." IN {
+  type hint;
+  file "/etc/bind/zero.root.zone";
+};
+
+options {
+	dnssec-validation no;
+};
