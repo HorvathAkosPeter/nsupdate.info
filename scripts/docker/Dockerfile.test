@@ -1,0 +1,13 @@
+FROM python:3.11-alpine
+WORKDIR /app
+
+RUN apk add bind git rustc-dev cargo openssl-dev pkgconf bash
+RUN mkdir -pv /etc/bind/zones /var/lib/bind/pri/ /app
+COPY scripts/docker/bind/named.conf.local /etc/bind/named.conf.local
+COPY scripts/docker/bind/zones/ /var/lib/bind/pri/
+COPY pyproject.toml /app/pyproject.toml
+RUN chown named -R /var/lib/bind/pri/
+RUN git config --global --add safe.directory /app
+RUN cd /app && PIP_ALLOW_ROOT=1 pip install --upgrade pip && PIP_ALLOW_ROOT=1 pip install -e . && pip install -r requirements.d/dev.txt
+
+CMD ["/app/scripts/docker/test.sh"]

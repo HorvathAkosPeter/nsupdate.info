@@ -1,0 +1,7 @@
+# Ignore everything
+*
+
+# Allow files needs for initial image setup
+!pyproject.toml
+!scripts/docker/
+!requirements.d/
